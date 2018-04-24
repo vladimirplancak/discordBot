@@ -21,7 +21,7 @@ namespace DiscordBot.Services
 
         public List<QueueItem> Queue
         {
-            get { return _queue }
+            get { return _queue; }
         }
 
         public event EventHandler<string> OnStartDownloading;
