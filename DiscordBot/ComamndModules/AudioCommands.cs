@@ -56,10 +56,53 @@ namespace DiscordBot.ComamndModules
 
         // You *MUST* mark these commands with 'RunMode.Async'
         // otherwise the bot will not respond until the Task times out.
-        [Command("join", RunMode = RunMode.Async), Summary("Joins channel in which author of the command is currently in.")]
-        public async Task JoinCmd()
+        [Command("join", RunMode = RunMode.Async), Summary("Joins channel in which author of the command is currently in. Or channel by passed id")]
+        public async Task JoinCmd([Summary("Id of the voice channel.")] ulong? channelId = null)
         {
-            //await _service.JoinAudio(Context.Guild, (Context.User as IVoiceState).VoiceChannel);
+            var hasJoined = false;
+            var errorMessage = "```Voice channel not found. Please user correct id for voice channel, or join one of the channels that bot has privileges to join and execute command again.```";
+
+            if (channelId.HasValue)
+            {
+                //Try to get voice by id.
+                var channel = await Context.Guild.GetVoiceChannelAsync((ulong)channelId);
+
+                if(channel != null)
+                {
+                    try
+                    {
+                        hasJoined = await _audioService.JoinAudio(Context.Guild, channel);
+                    }
+                    catch (Exception ex)
+                    {
+
+                        Console.WriteLine(ex);
+                    }
+                    
+                }
+            }
+
+            //Try to join channel that user is currently in.
+            if (!hasJoined)
+            {
+                try
+                {
+                    hasJoined = await _audioService.JoinAudio(Context.Guild, (Context.User as IVoiceState).VoiceChannel);
+                }
+                catch (Exception ex)
+                {
+
+                    Console.WriteLine(ex);
+                }
+                
+            }
+
+            //Still not joined, replay with error.
+            if (!hasJoined)
+            {
+                await ReplyAsync(errorMessage);
+            }
+            
         }
 
         // Remember to add preconditions to your commands,
@@ -68,13 +111,13 @@ namespace DiscordBot.ComamndModules
         [Command("leave", RunMode = RunMode.Async), Summary("Removes bot from any voice channel")]
         public async Task LeaveCmd()
         {
-            //await _service.LeaveAudio(Context.Guild);
+            await _audioService.LeaveAudio(Context.Guild);
         }
 
         [Command("play", RunMode = RunMode.Async), Summary("Starts playing songs from the queue")]
         public async Task PlayCmd()
         {
-            _audioService.StartPlaying();
+            await _audioService.StartQueue(Context.Guild);
         }
 
 
@@ -97,6 +140,12 @@ namespace DiscordBot.ComamndModules
         public async Task QueueList([Remainder] string song)
         {
 
+        }
+
+        [Command("next", RunMode = RunMode.Async)]
+        public async Task Next()
+        {
+            await _audioService.NextAsync(Context.Guild, (Context.User as IVoiceState).VoiceChannel);
         }
 
     }
