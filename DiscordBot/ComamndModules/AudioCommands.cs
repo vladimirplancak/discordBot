@@ -138,9 +138,18 @@ namespace DiscordBot.ComamndModules
         }
 
         [Command("list", RunMode = RunMode.Async), Summary("Gets queue list.")]
-        public async Task QueueList([Remainder] string song)
+        public async Task QueueList()
         {
+            var retVal = "\n";
 
+            var i = 1;
+            foreach(var song in _audioService.Queue)
+            {
+                retVal += i + ". " + song.Name + "\n";
+                i++;
+            }
+
+            await ReplyAsync($"```{ retVal }```");
         }
 
         [Command("next", RunMode = RunMode.Async), Summary("Skip current song!")]
