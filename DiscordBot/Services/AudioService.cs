@@ -1,5 +1,6 @@
 ﻿using Discord;
 using Discord.Audio;
+using Discord.Commands;
 using DiscordBot.Models;
 using MediaToolkit;
 using MediaToolkit.Model;
@@ -89,7 +90,7 @@ namespace DiscordBot.Services
 
         private string GetPropperName(Video vid)
         {
-            return vid.FullName.Replace("YouTube" + vid.FileExtension, "");
+            return vid.FullName.Replace(" - YouTube" + vid.FileExtension, "");
         }
 
         private QueueItem PrepareFile(string link)
@@ -122,7 +123,7 @@ namespace DiscordBot.Services
                 engine.GetMetadata(inputFile);
 
                 engine.Convert(inputFile, outputFile);
-              
+
             }
             OnFinishConverting?.Invoke(this, link);
 
@@ -175,7 +176,7 @@ namespace DiscordBot.Services
             IAudioClient _audio;
             if (ConnectedChannels.TryGetValue(guild.Id, out _audio))
             {
-                
+
                 using (Stream output = ffmpeg.StandardOutput.BaseStream)
                 using (AudioOutStream discord = _audio.CreatePCMStream(AudioApplication.Mixed))
                 {
@@ -186,7 +187,7 @@ namespace DiscordBot.Services
                     bool exit = false;
                     byte[] buffer = new byte[bufferSize];
 
-                    while (!Skip && !fail && !_disposeToken.IsCancellationRequested &&  !exit)
+                    while (!Skip && !fail && !_disposeToken.IsCancellationRequested && !exit)
                     {
                         try
                         {
@@ -229,9 +230,11 @@ namespace DiscordBot.Services
             }
         }
 
-        public async Task StartQueue(IGuild guild)
+        public async Task StartQueue(ICommandContext context)
         {
+            
             bool next = true;
+
 
             while (true)
             {
@@ -252,6 +255,8 @@ namespace DiscordBot.Services
                     if (_queue.Count == 0)
                     {
                         Console.WriteLine("Queue empty - ended");
+                        await context.Channel.SendMessageAsync("```Queue is empty!```");
+
                     }
                     else
                     {
@@ -261,7 +266,7 @@ namespace DiscordBot.Services
                             var song = _queue.Peek();
 
                             //Send audio (Long Async blocking, Read/Write stream)
-                            await SendAudio(guild, song);
+                            await SendAudio(context.Guild, song);
 
                             try
                             {
@@ -286,15 +291,18 @@ namespace DiscordBot.Services
                 }
             }
         }
-     
 
-        public async Task NextAsync(IGuild guild, IVoiceChannel target)
+
+        public QueueItem Next(IGuild guild, IVoiceChannel target)
         {
+
             Skip = true;
             Pause = false;
+
+            return _queue.Peek();
         }
 
-       
+
 
         public async Task<bool> JoinAudio(IGuild guild, IVoiceChannel target)
         {

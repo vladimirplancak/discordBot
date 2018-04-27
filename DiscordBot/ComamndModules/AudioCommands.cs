@@ -23,6 +23,7 @@ namespace DiscordBot.ComamndModules
             //_audioService.OnFinishConverting += _audioService_OnFinishConverting;
         }
 
+
         private void _audioService_OnFinishConverting(object sender, string e)
         {
             ReplyAsync($"```Finished converting```");
@@ -117,11 +118,11 @@ namespace DiscordBot.ComamndModules
         [Command("play", RunMode = RunMode.Async), Summary("Starts playing songs from the queue")]
         public async Task PlayCmd()
         {
-            await _audioService.StartQueue(Context.Guild);
+            await _audioService.StartQueue(Context);
         }
 
 
-        [Command("queue", RunMode = RunMode.Async), Summary("Queues new song.")]
+        [Command("add", RunMode = RunMode.Async), Summary("Queues new song.")]
         public async Task Queue([Remainder] string link)
         {
             var addedItem = _audioService.AddToQueue(link);
@@ -136,7 +137,7 @@ namespace DiscordBot.ComamndModules
             }
         }
 
-        [Command("queuelist", RunMode = RunMode.Async), Summary("Gets queue list.")]
+        [Command("list", RunMode = RunMode.Async), Summary("Gets queue list.")]
         public async Task QueueList([Remainder] string song)
         {
 
@@ -145,7 +146,8 @@ namespace DiscordBot.ComamndModules
         [Command("next", RunMode = RunMode.Async)]
         public async Task Next()
         {
-            await _audioService.NextAsync(Context.Guild, (Context.User as IVoiceState).VoiceChannel);
+            var skippedSong = _audioService.Next(Context.Guild, (Context.User as IVoiceState).VoiceChannel);
+            await ReplyAsync($"{  Context.User.Mention } - skipped { skippedSong.Name }!" );
         }
 
     }
