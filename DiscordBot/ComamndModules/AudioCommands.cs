@@ -123,9 +123,9 @@ namespace DiscordBot.ComamndModules
 
 
         [Command("add", RunMode = RunMode.Async), Summary("Queues new song.")]
-        public async Task Queue([Remainder] string link)
+        public async Task Queue([Remainder, Summary("Link of the youtube song!")] string link)
         {
-            var addedItem = _audioService.AddToQueue(link);
+            var addedItem = _audioService.AddToQueue(link, Context.User);
 
             if (addedItem != null)
             {
@@ -151,6 +151,6 @@ namespace DiscordBot.ComamndModules
         }
 
         [Command("pause", RunMode = RunMode.Async), Summary("Pause current song!")]
-        public async Task Pause() => await _audioService.PauseAudio();
+        public async Task Pause() => _audioService.PauseAudio();
     }
 }

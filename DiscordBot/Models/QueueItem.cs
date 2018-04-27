@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Discord;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -12,5 +13,6 @@ namespace DiscordBot.Models
         public string Name { get; set; }
         public string FilePath { get; set; }
         public bool IsPlaying { get; set; }
+        public IUser QueueBy;
     }
 }

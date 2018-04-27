@@ -48,6 +48,7 @@ namespace DiscordBot.Services
         private bool _internalSkip;
         private TaskCompletionSource<bool> _tcs;
         private CancellationTokenSource _disposeToken;
+        private bool IsPlaying = false;
 
         public Queue<QueueItem> Queue
         {
@@ -152,12 +153,13 @@ namespace DiscordBot.Services
             return Process.Start(ffmpeg);
         }
 
-        public QueueItem AddToQueue(string link)
+        public QueueItem AddToQueue(string link, IUser user)
         {
 
             try
             {
                 var queueItem = PrepareFile(link);
+                queueItem.QueueBy = user;
                 _queue.Enqueue(queueItem);
                 Console.WriteLine($"Added { queueItem.Name } to queue.");
 
@@ -233,6 +235,13 @@ namespace DiscordBot.Services
         public async Task StartQueue(ICommandContext context)
         {
             
+            if (IsPlaying){
+                Console.WriteLine("Cant start playing because playing is already in process!");
+                return;
+            }
+            IsPlaying = true;
+
+
             bool next = true;
 
 
@@ -242,6 +251,7 @@ namespace DiscordBot.Services
                 //Next song if current is over
                 if (!next)
                 {
+                    IsPlaying = false;
                     pause = await _tcs.Task;
                     _tcs = new TaskCompletionSource<bool>();
                 }
@@ -266,7 +276,9 @@ namespace DiscordBot.Services
                             var song = _queue.Peek();
 
                             //Send audio (Long Async blocking, Read/Write stream)
+                            song.IsPlaying = true;
                             await SendAudio(context.Guild, song);
+                            song.IsPlaying = false;
 
                             try
                             {
@@ -336,6 +348,7 @@ namespace DiscordBot.Services
 
         public async Task LeaveAudio(IGuild guild)
         {
+            IsPlaying = false;
             IAudioClient client;
             if (ConnectedChannels.TryRemove(guild.Id, out client))
             {
@@ -343,7 +356,7 @@ namespace DiscordBot.Services
             }
         }
 
-        public async Task PauseAudio()
+        public void PauseAudio()
         {
             Pause = !Pause;
         }
