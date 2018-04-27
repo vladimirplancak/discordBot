@@ -343,5 +343,10 @@ namespace DiscordBot.Services
             }
         }
 
+        public async Task PauseAudio()
+        {
+            Pause = !Pause;
+        }
+
     }
 }
