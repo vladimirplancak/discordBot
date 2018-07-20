@@ -123,9 +123,12 @@ namespace DiscordBot.ComamndModules
 
 
         [Command("add", RunMode = RunMode.Async), Summary("Queues new song.")]
-        public async Task Queue([Remainder, Summary("Link of the youtube song!")] string link)
+        public async Task Queue(
+            [Summary("Link of the youtube song!")] string link, 
+            [Summary("should this song be looped in queue")] bool persist = false
+            )
         {
-            var addedItem = _audioService.AddToQueue(link, Context.User);
+            var addedItem = _audioService.AddToQueue(link, Context.User, persist);
 
             if (addedItem != null)
             {

@@ -22,9 +22,9 @@ namespace DiscordBot.Services
     {
         private readonly ConcurrentDictionary<ulong, IAudioClient> ConnectedChannels = new ConcurrentDictionary<ulong, IAudioClient>();
 
-        private Queue<QueueItem> _queue = new Queue<QueueItem>();
+        private Queue<SongInQueue> _queue = new Queue<SongInQueue>();
         //TODO: Get from config file.
-        private readonly static string _musicStorage = @"E:/youtubeMusic/";
+        private readonly static string _musicStorage = @"D:/temp/";
         private bool Pause
         {
             get => _internalPause;
@@ -50,7 +50,7 @@ namespace DiscordBot.Services
         private CancellationTokenSource _disposeToken;
         private bool IsPlaying = false;
 
-        public Queue<QueueItem> Queue
+        public Queue<SongInQueue> Queue
         {
             get { return _queue; }
         }
@@ -94,22 +94,24 @@ namespace DiscordBot.Services
             return vid.FullName.Replace(" - YouTube" + vid.FileExtension, "");
         }
 
-        private QueueItem PrepareFile(string link)
+        private SongInQueue PrepareSong(string link)
         {
             Console.WriteLine("Started processing file " + link);
             var guid = Guid.NewGuid().ToString();
-            var result = new QueueItem();
+            var result = new SongInQueue();
             result.Id = _queue.Count;
 
             YouTube youtube = YouTube.Default;
             var fullFilePath = _musicStorage + guid;
             OnStartDownloading?.Invoke(this, link);
             Video vid = youtube.GetVideo(link);
+            Console.WriteLine("Finished downloading file " + link);
             OnFinishDownloading?.Invoke(this, link);
             result.Name = GetPropperName(vid);
 
             OnStartSavingToDisc?.Invoke(this, link);
             File.WriteAllBytes(fullFilePath, vid.GetBytes());
+            Console.WriteLine("Finished saving file to the disc.");
             OnFinishSavingToDisc?.Invoke(this, link);
 
             var inputFile = new MediaFile { Filename = fullFilePath };
@@ -119,13 +121,16 @@ namespace DiscordBot.Services
             result.FilePath = fullFilePathWithExtension;
 
             OnStartConverting?.Invoke(this, link);
+            var convertSW = new Stopwatch();
             using (var engine = new Engine())
             {
                 engine.GetMetadata(inputFile);
-
+                convertSW.Start();
                 engine.Convert(inputFile, outputFile);
+                convertSW.Stop();
 
             }
+            Console.WriteLine($"Finished convering. Time: { convertSW.Elapsed.ToString() }");
             OnFinishConverting?.Invoke(this, link);
 
             if (File.Exists(fullFilePath))
@@ -153,17 +158,18 @@ namespace DiscordBot.Services
             return Process.Start(ffmpeg);
         }
 
-        public QueueItem AddToQueue(string link, IUser user)
+        public SongInQueue AddToQueue(string link, IUser user, bool persist = false)
         {
 
             try
             {
-                var queueItem = PrepareFile(link);
-                queueItem.QueueBy = user;
-                _queue.Enqueue(queueItem);
-                Console.WriteLine($"Added { queueItem.Name } to queue.");
+                var songInQueue = PrepareSong(link);
+                songInQueue.QueueBy = user;
+                songInQueue.PersistInQueue = persist;
+                _queue.Enqueue(songInQueue);
+                Console.WriteLine($"Added { songInQueue.Name } to queue.");
 
-                return queueItem;
+                return songInQueue;
             }
             catch (Exception ex)
             {
@@ -172,7 +178,7 @@ namespace DiscordBot.Services
             }
         }
 
-        private async Task SendAudio(IGuild guild, QueueItem song)
+        private async Task SendAudio(IGuild guild, SongInQueue song)
         {
             Process ffmpeg = GetFfmpeg(song.FilePath);
             IAudioClient _audio;
@@ -180,10 +186,10 @@ namespace DiscordBot.Services
             {
 
                 using (Stream output = ffmpeg.StandardOutput.BaseStream)
-                using (AudioOutStream discord = _audio.CreatePCMStream(AudioApplication.Mixed))
+                using (AudioOutStream discord = _audio.CreatePCMStream(AudioApplication.Music))
                 {
                     //Adjust?
-                    int bufferSize = 2048;
+                    int bufferSize = 4096;
                     int bytesSent = 0;
                     bool fail = false;
                     bool exit = false;
@@ -225,9 +231,16 @@ namespace DiscordBot.Services
                             fail = true;
                         }
                     }
+                    discord.Clear();
                     await discord.FlushAsync();
                     discord.Dispose();
                     await output.FlushAsync();
+                    output.Close();
+                    ffmpeg.Dispose();
+                    ffmpeg.Close();
+                    //ffmpeg.Kill(); TODO: Invastigate? 
+                    
+
                 }
             }
         }
@@ -282,16 +295,22 @@ namespace DiscordBot.Services
 
                             try
                             {
-                                File.Delete(song.FilePath);
+                                //Check if song should be persistant.
+                                if (song.PersistInQueue)
+                                {
+                                    //Persist song at the end of the queue
+                                    _queue.Enqueue(_queue.Dequeue());
+                                }
+                                else
+                                {
+                                    //otherwise delete item.
+                                    _queue.Dequeue();
+                                    File.Delete(song.FilePath);
+                                }
                             }
                             catch
                             {
                                 // ignored
-                            }
-                            finally
-                            {
-                                //Finally remove song from playlist
-                                _queue.Dequeue();
                             }
                             next = true;
                         }
@@ -305,7 +324,7 @@ namespace DiscordBot.Services
         }
 
 
-        public QueueItem Next(IGuild guild, IVoiceChannel target)
+        public SongInQueue Next(IGuild guild, IVoiceChannel target)
         {
 
             Skip = true;
