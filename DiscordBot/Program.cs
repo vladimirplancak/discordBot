@@ -41,7 +41,7 @@ namespace DiscordBot
 
             services = new ServiceCollection()
                 .AddSingleton(commands)
-                .AddSingleton(new AudioService())
+                .AddSingleton(new AudioService(client))
                 .BuildServiceProvider();
 
             await InstallCommands();

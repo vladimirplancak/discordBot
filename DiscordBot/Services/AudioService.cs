@@ -15,6 +15,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using VideoLibrary;
+using YoutubeExplode;
 
 namespace DiscordBot.Services
 {
@@ -23,8 +24,12 @@ namespace DiscordBot.Services
         private readonly ConcurrentDictionary<ulong, IAudioClient> ConnectedChannels = new ConcurrentDictionary<ulong, IAudioClient>();
 
         private Queue<SongInQueue> _queue = new Queue<SongInQueue>();
+
         //TODO: Get from config file.
-        private readonly static string _musicStorage = @"D:/temp/";
+        private readonly static string _musicStorage = @"E:/youtubemusic/";
+        private readonly static string _musicPlayListStorage = @"E:/youtubeMusicPlayList/";
+        private readonly IDiscordClient _client;
+
         private bool Pause
         {
             get => _internalPause;
@@ -61,16 +66,44 @@ namespace DiscordBot.Services
         public event EventHandler<string> OnFinishSavingToDisc;
         public event EventHandler<string> OnStartConverting;
         public event EventHandler<string> OnFinishConverting;
+        public event EventHandler<string> OnQueueEmpty;
 
         static AudioService()
         {
             DeleteOldFiles();
         }
 
-        public AudioService()
+        public AudioService(IDiscordClient client)
         {
+            _client = client;
             _tcs = new TaskCompletionSource<bool>();
             _disposeToken = new CancellationTokenSource();
+            GetSongsFromPlayList();
+        }
+
+        public void GetSongsFromPlayList()
+        {
+            if (!Directory.Exists(_musicPlayListStorage))
+            {
+                Directory.CreateDirectory(_musicPlayListStorage);
+            }
+            else
+            {
+                var files = Directory.GetFiles(_musicPlayListStorage);
+                foreach (var file in files)
+                {
+                    var fileName = Path.GetFileName(file);
+                    var songToQueue = new SongInQueue()
+                    {
+                        FilePath = file,
+                        Name = fileName,
+                        PersistInQueue = false,
+                        IsPlayList = true,
+                    };
+
+                    _queue.Enqueue(songToQueue);
+                }
+            }
         }
 
         private static void DeleteOldFiles()
@@ -99,7 +132,6 @@ namespace DiscordBot.Services
             Console.WriteLine("Started processing file " + link);
             var guid = Guid.NewGuid().ToString();
             var result = new SongInQueue();
-            result.Id = _queue.Count;
 
             YouTube youtube = YouTube.Default;
             var fullFilePath = _musicStorage + guid;
@@ -180,13 +212,12 @@ namespace DiscordBot.Services
 
         private async Task SendAudio(IGuild guild, SongInQueue song)
         {
-            Process ffmpeg = GetFfmpeg(song.FilePath);
-            IAudioClient _audio;
-            if (ConnectedChannels.TryGetValue(guild.Id, out _audio))
+                       
+            if (ConnectedChannels.TryGetValue(guild.Id, out IAudioClient _audio))
             {
-
+                using(Process ffmpeg = GetFfmpeg(song.FilePath))
                 using (Stream output = ffmpeg.StandardOutput.BaseStream)
-                using (AudioOutStream discord = _audio.CreatePCMStream(AudioApplication.Music))
+                using (AudioOutStream AudioOutStream = _audio.CreatePCMStream(AudioApplication.Music))
                 {
                     //Adjust?
                     int bufferSize = 4096;
@@ -207,7 +238,7 @@ namespace DiscordBot.Services
                                 break;
                             }
 
-                            await discord.WriteAsync(buffer, 0, read, _disposeToken.Token);
+                            await AudioOutStream.WriteAsync(buffer, 0, read, _disposeToken.Token);
 
                             if (Pause)
                             {
@@ -231,16 +262,6 @@ namespace DiscordBot.Services
                             fail = true;
                         }
                     }
-                    discord.Clear();
-                    await discord.FlushAsync();
-                    discord.Dispose();
-                    await output.FlushAsync();
-                    output.Close();
-                    ffmpeg.Dispose();
-                    ffmpeg.Close();
-                    //ffmpeg.Kill(); TODO: Invastigate? 
-                    
-
                 }
             }
         }
@@ -278,7 +299,7 @@ namespace DiscordBot.Services
                     if (_queue.Count == 0)
                     {
                         Console.WriteLine("Queue empty - ended");
-                        await context.Channel.SendMessageAsync("```Queue is empty!```");
+                        OnQueueEmpty?.Invoke(this, null);
 
                     }
                     else
@@ -305,7 +326,9 @@ namespace DiscordBot.Services
                                 {
                                     //otherwise delete item.
                                     _queue.Dequeue();
-                                    File.Delete(song.FilePath);
+
+                                    if(!song.IsPlayList)
+                                        File.Delete(song.FilePath);
                                 }
                             }
                             catch
@@ -326,11 +349,14 @@ namespace DiscordBot.Services
 
         public SongInQueue Next(IGuild guild, IVoiceChannel target)
         {
-
             Skip = true;
             Pause = false;
+            var song = _queue.Peek();
 
-            return _queue.Peek();
+            _queue.Dequeue();
+            if (!song.IsPlayList && File.Exists(song.FilePath))
+                File.Delete(song.FilePath);
+            return song;
         }
 
 

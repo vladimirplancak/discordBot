@@ -15,6 +15,7 @@ namespace DiscordBot.ComamndModules
         public AudioCommands(AudioService service)
         {
             _audioService = service;
+            _audioService.OnQueueEmpty += _audioService_OnQueueEmpty;
             //_audioService.OnFinishDownloading += _audioService_OnFinishDownloading;
             //_audioService.OnStartDownloading += _audioService_OnStartDownloading;
             //_audioService.OnStartSavingToDisc += _audioService_OnStartSavingToDisc;
@@ -23,35 +24,44 @@ namespace DiscordBot.ComamndModules
             //_audioService.OnFinishConverting += _audioService_OnFinishConverting;
         }
 
+        private void Replay(string msg)
+        {
+             ReplyAsync($"```{msg}```");
+        }
+
+        private void _audioService_OnQueueEmpty(object sender, string e)
+        {
+            Replay("Queue is empty!");
+        }
 
         private void _audioService_OnFinishConverting(object sender, string e)
         {
-            ReplyAsync($"```Finished converting```");
+            Replay("Finished converting");
         }
 
         private void _audioService_OnStartConverting(object sender, string e)
         {
-            ReplyAsync($"```Started converting```");
+            Replay("Started converting");
         }
 
         private void _audioService_OnFinishSavingToDisc(object sender, string e)
         {
-            ReplyAsync($"```Finished saving to disc```");
+            Replay("Finished saving to disc");
         }
 
         private void _audioService_OnStartSavingToDisc(object sender, string e)
         {
-            ReplyAsync($"```Started saving to disc```");
+            Replay("Started saving to disc");
         }
 
         private void _audioService_OnStartDownloading(object sender, string e)
         {
-            ReplyAsync($"```Started downloading```");
+            Replay("Started downloading");
         }
 
         private void _audioService_OnFinishDownloading(object sender, string e)
         {
-            ReplyAsync($"```Finished downloading```");
+            Replay("Finished downloading");
         }
 
 
@@ -101,7 +111,7 @@ namespace DiscordBot.ComamndModules
             //Still not joined, replay with error.
             if (!hasJoined)
             {
-                await ReplyAsync(errorMessage);
+                Replay(errorMessage);
             }
             
         }
@@ -132,11 +142,11 @@ namespace DiscordBot.ComamndModules
 
             if (addedItem != null)
             {
-                await ReplyAsync($"```{ addedItem.Name } - Added to queue!```");
+                Replay("{ addedItem.Name } - Added to queue!");
             }
             else
             {
-                await ReplyAsync($"```{ link } - was not able to be processed!```");
+                Replay("{ link } - was not able to be processed!");
             }
         }
 
@@ -148,11 +158,13 @@ namespace DiscordBot.ComamndModules
             var i = 1;
             foreach(var song in _audioService.Queue)
             {
-                retVal += i + ". " + song.Name + "\n";
+                string isPlaying = song.IsPlaying ? " - playing! " : "";
+               
+                retVal += i + ". " + song.Name + " " + isPlaying + "\n";
                 i++;
             }
 
-            await ReplyAsync($"```{ retVal }```");
+            Replay(retVal);
         }
 
         [Command("next", RunMode = RunMode.Async), Summary("Skip current song!")]
@@ -164,5 +176,8 @@ namespace DiscordBot.ComamndModules
 
         [Command("pause", RunMode = RunMode.Async), Summary("Pause current song!")]
         public async Task Pause() => _audioService.PauseAudio();
+
+        [Command("playlist", RunMode = RunMode.Async), Summary("Adds whole playlist to the queue!")]
+        public async Task CreatePlayList() => _audioService.GetSongsFromPlayList();
     }
 }
