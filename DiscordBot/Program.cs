@@ -38,10 +38,11 @@ namespace DiscordBot
             commands = new CommandService();
 
             string token = ""; // Remember to keep this private!
+            var audioService = new AudioService(client);
 
             services = new ServiceCollection()
                 .AddSingleton(commands)
-                .AddSingleton(new AudioService(client))
+                .AddSingleton(audioService)
                 .BuildServiceProvider();
 
             await InstallCommands();

@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.Audio;
 using Discord.Commands;
+using Discord.WebSocket;
 using DiscordBot.Models;
 using MediaToolkit;
 using MediaToolkit.Model;
@@ -28,7 +29,7 @@ namespace DiscordBot.Services
         //TODO: Get from config file.
         private readonly static string _musicStorage = @"E:/youtubemusic/";
         private readonly static string _musicPlayListStorage = @"E:/youtubeMusicPlayList/";
-        private readonly IDiscordClient _client;
+        private readonly DiscordSocketClient _client;
 
         private bool Pause
         {
@@ -54,6 +55,7 @@ namespace DiscordBot.Services
         private TaskCompletionSource<bool> _tcs;
         private CancellationTokenSource _disposeToken;
         private bool IsPlaying = false;
+        private DateTime OnQueueEmptyCalled;
 
         public Queue<SongInQueue> Queue
         {
@@ -73,12 +75,19 @@ namespace DiscordBot.Services
             DeleteOldFiles();
         }
 
-        public AudioService(IDiscordClient client)
+        public AudioService(DiscordSocketClient client)
         {
             _client = client;
             _tcs = new TaskCompletionSource<bool>();
             _disposeToken = new CancellationTokenSource();
-            GetSongsFromPlayList();
+
+            _client.Ready += () =>
+            {
+                GetSongsFromPlayList();
+
+                return Task.CompletedTask;
+            };
+            
         }
 
         public void GetSongsFromPlayList()
@@ -99,6 +108,7 @@ namespace DiscordBot.Services
                         Name = fileName,
                         PersistInQueue = false,
                         IsPlayList = true,
+                        QueueBy = _client.CurrentUser
                     };
 
                     _queue.Enqueue(songToQueue);
@@ -299,8 +309,9 @@ namespace DiscordBot.Services
                     if (_queue.Count == 0)
                     {
                         Console.WriteLine("Queue empty - ended");
+                        //Event is fiering twice. 
                         OnQueueEmpty?.Invoke(this, null);
-
+                        break;
                     }
                     else
                     {
@@ -352,16 +363,18 @@ namespace DiscordBot.Services
             Skip = true;
             Pause = false;
             var song = _queue.Peek();
-
-            _queue.Dequeue();
+            
             if (!song.IsPlayList && File.Exists(song.FilePath))
                 File.Delete(song.FilePath);
+
+            _tcs = new TaskCompletionSource<bool>();
+
             return song;
         }
 
 
 
-        public async Task<bool> JoinAudio(IGuild guild, IVoiceChannel target)
+        public async Task<bool> JoinAudio(IGuild guild, IVoiceChannel voiceChannel)
         {
             var retVal = false;
 
@@ -370,12 +383,12 @@ namespace DiscordBot.Services
             {
                 retVal = false;
             }
-            if (target.Guild.Id != guild.Id)
+            if (voiceChannel.Guild.Id != guild.Id)
             {
                 retVal = false;
             }
 
-            var audioClient = await target.ConnectAsync();
+            var audioClient = await voiceChannel.ConnectAsync();
 
             if (ConnectedChannels.TryAdd(guild.Id, audioClient))
             {

@@ -11,17 +11,18 @@ namespace DiscordBot.ComamndModules
 {
     public class AudioCommands : ModuleBase
     {
+        private bool OnQueueEmtpySubscribed = false;
         private readonly AudioService _audioService;
+        
+
         public AudioCommands(AudioService service)
         {
             _audioService = service;
-            _audioService.OnQueueEmpty += _audioService_OnQueueEmpty;
-            //_audioService.OnFinishDownloading += _audioService_OnFinishDownloading;
-            //_audioService.OnStartDownloading += _audioService_OnStartDownloading;
-            //_audioService.OnStartSavingToDisc += _audioService_OnStartSavingToDisc;
-            //_audioService.OnFinishSavingToDisc += _audioService_OnFinishSavingToDisc;
-            //_audioService.OnStartConverting += _audioService_OnStartConverting;
-            //_audioService.OnFinishConverting += _audioService_OnFinishConverting;
+            if (!OnQueueEmtpySubscribed)
+            {
+                _audioService.OnQueueEmpty += _audioService_OnQueueEmpty;
+                OnQueueEmtpySubscribed = true;
+            }
         }
 
         private void Replay(string msg)
@@ -29,6 +30,7 @@ namespace DiscordBot.ComamndModules
              ReplyAsync($"```{msg}```");
         }
 
+        #region EventHandlers
         private void _audioService_OnQueueEmpty(object sender, string e)
         {
             Replay("Queue is empty!");
@@ -63,7 +65,7 @@ namespace DiscordBot.ComamndModules
         {
             Replay("Finished downloading");
         }
-
+        #endregion
 
         // You *MUST* mark these commands with 'RunMode.Async'
         // otherwise the bot will not respond until the Task times out.
