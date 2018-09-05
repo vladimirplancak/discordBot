@@ -276,7 +276,7 @@ namespace DiscordBot.Services
             }
         }
 
-        public async Task StartQueue(ICommandContext context)
+        public async Task StartQueue(ICommandContext context, int? underNumber = null)
         {
             
             if (IsPlaying){
@@ -318,7 +318,17 @@ namespace DiscordBot.Services
                         if (!pause)
                         {
                             //Get Song
-                            var song = _queue.Peek();
+                            SongInQueue song;
+
+                            //if (underNumber.HasValue)
+                            //{
+                            //    //song = _queue;
+                            //}
+                            //else
+                            //{
+                                song = _queue.Peek();
+                          
+                            //}
 
                             //Send audio (Long Async blocking, Read/Write stream)
                             song.IsPlaying = true;

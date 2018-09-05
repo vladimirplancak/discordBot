@@ -2,9 +2,6 @@
 using Discord.Commands;
 using DiscordBot.Services;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace DiscordBot.ComamndModules
@@ -20,7 +17,7 @@ namespace DiscordBot.ComamndModules
             _audioService = service;
             if (!OnQueueEmtpySubscribed)
             {
-                _audioService.OnQueueEmpty += _audioService_OnQueueEmpty;
+                //_audioService.OnQueueEmpty += _audioService_OnQueueEmpty;
                 OnQueueEmtpySubscribed = true;
             }
         }
