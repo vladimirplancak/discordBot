@@ -125,9 +125,9 @@ namespace DiscordBot.ComamndModules
         }
 
         [Command("play", RunMode = RunMode.Async), Summary("Starts playing songs from the queue")]
-        public async Task PlayCmd()
+        public async Task PlayCmd([Summary("TODO")] int? underNumber = null)
         {
-            await _audioService.StartQueue(Context);
+            await _audioService.StartQueue(Context, underNumber);
         }
 
 

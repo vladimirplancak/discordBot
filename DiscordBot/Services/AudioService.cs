@@ -5,18 +5,16 @@ using Discord.WebSocket;
 using DiscordBot.Models;
 using MediaToolkit;
 using MediaToolkit.Model;
-using NAudio.Wave;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using VideoLibrary;
-using YoutubeExplode;
+using DiscordBot.Extensions;
 
 namespace DiscordBot.Services
 {
@@ -24,7 +22,7 @@ namespace DiscordBot.Services
     {
         private readonly ConcurrentDictionary<ulong, IAudioClient> ConnectedChannels = new ConcurrentDictionary<ulong, IAudioClient>();
 
-        private Queue<SongInQueue> _queue = new Queue<SongInQueue>();
+        private List<SongInQueue> _queue = new List<SongInQueue>();
 
         //TODO: Get from config file.
         private readonly static string _musicStorage = @"E:/youtubemusic/";
@@ -57,7 +55,7 @@ namespace DiscordBot.Services
         private bool IsPlaying = false;
         private DateTime OnQueueEmptyCalled;
 
-        public Queue<SongInQueue> Queue
+        public List<SongInQueue> Queue
         {
             get { return _queue; }
         }
@@ -111,7 +109,7 @@ namespace DiscordBot.Services
                         QueueBy = _client.CurrentUser
                     };
 
-                    _queue.Enqueue(songToQueue);
+                    _queue.Add(songToQueue);
                 }
             }
         }
@@ -208,7 +206,7 @@ namespace DiscordBot.Services
                 var songInQueue = PrepareSong(link);
                 songInQueue.QueueBy = user;
                 songInQueue.PersistInQueue = persist;
-                _queue.Enqueue(songInQueue);
+                _queue.AddToTheEnd(songInQueue);
                 Console.WriteLine($"Added { songInQueue.Name } to queue.");
 
                 return songInQueue;
@@ -320,15 +318,15 @@ namespace DiscordBot.Services
                             //Get Song
                             SongInQueue song;
 
-                            //if (underNumber.HasValue)
-                            //{
-                            //    //song = _queue;
-                            //}
-                            //else
-                            //{
-                                song = _queue.Peek();
-                          
-                            //}
+                            if (underNumber.HasValue)
+                            {
+                                //Since C# lists are zero based, we have to decrement by one.
+                                song = _queue.ElementAtOrDefault(underNumber.Value - 1);
+                            }
+                            else
+                            {
+                                song = _queue.FirstOrDefault();
+                            }
 
                             //Send audio (Long Async blocking, Read/Write stream)
                             song.IsPlaying = true;
@@ -341,12 +339,12 @@ namespace DiscordBot.Services
                                 if (song.PersistInQueue)
                                 {
                                     //Persist song at the end of the queue
-                                    _queue.Enqueue(_queue.Dequeue());
+                                    _queue.Add(song);
                                 }
                                 else
                                 {
                                     //otherwise delete item.
-                                    _queue.Dequeue();
+                                    _queue.Remove(song);
 
                                     if(!song.IsPlayList)
                                         File.Delete(song.FilePath);
@@ -372,7 +370,7 @@ namespace DiscordBot.Services
         {
             Skip = true;
             Pause = false;
-            var song = _queue.Peek();
+            var song = _queue.FirstOrDefault();
             
             if (!song.IsPlayList && File.Exists(song.FilePath))
                 File.Delete(song.FilePath);
@@ -388,8 +386,7 @@ namespace DiscordBot.Services
         {
             var retVal = false;
 
-            IAudioClient client;
-            if (ConnectedChannels.TryGetValue(guild.Id, out client))
+            if (ConnectedChannels.TryGetValue(guild.Id, out IAudioClient client))
             {
                 retVal = false;
             }
@@ -417,8 +414,8 @@ namespace DiscordBot.Services
         public async Task LeaveAudio(IGuild guild)
         {
             IsPlaying = false;
-            IAudioClient client;
-            if (ConnectedChannels.TryRemove(guild.Id, out client))
+
+            if (ConnectedChannels.TryRemove(guild.Id, out IAudioClient client))
             {
                 await client.StopAsync();
             }
