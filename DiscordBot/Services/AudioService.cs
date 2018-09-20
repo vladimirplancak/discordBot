@@ -15,11 +15,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using VideoLibrary;
 using DiscordBot.Extensions;
+using log4net;
+using System.Reflection;
 
 namespace DiscordBot.Services
 {
     public class AudioService
     {
+        private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
         private readonly ConcurrentDictionary<ulong, IAudioClient> ConnectedChannels = new ConcurrentDictionary<ulong, IAudioClient>();
 
         private List<SongInQueue> _queue = new List<SongInQueue>();
@@ -85,7 +88,6 @@ namespace DiscordBot.Services
 
                 return Task.CompletedTask;
             };
-            
         }
 
         public void GetSongsFromPlayList()
@@ -96,6 +98,7 @@ namespace DiscordBot.Services
             }
             else
             {
+                log.Info("Started populating playlist.");
                 var files = Directory.GetFiles(_musicPlayListStorage);
                 foreach (var file in files)
                 {
@@ -109,8 +112,11 @@ namespace DiscordBot.Services
                         QueueBy = _client.CurrentUser
                     };
 
+                    log.Info($"Adding song { songToQueue.Name }");
                     _queue.Add(songToQueue);
                 }
+
+                log.Info("Finished populating playlist.");
             }
         }
 
@@ -278,7 +284,7 @@ namespace DiscordBot.Services
         {
             
             if (IsPlaying){
-                Console.WriteLine("Cant start playing because playing is already in process!");
+                log.Warn("Cant start playing because playing is already in process!");
                 return;
             }
             IsPlaying = true;
@@ -289,6 +295,8 @@ namespace DiscordBot.Services
 
             while (true)
             {
+                log.Info("Starting queue pool (entering while loop)");
+
                 bool pause = false;
                 //Next song if current is over
                 if (!next)
@@ -306,7 +314,7 @@ namespace DiscordBot.Services
                 {
                     if (_queue.Count == 0)
                     {
-                        Console.WriteLine("Queue empty - ended");
+                        log.Info("Queue empty - ended");
                         //Event is fiering twice. 
                         OnQueueEmpty?.Invoke(this, null);
                         break;

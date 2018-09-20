@@ -3,6 +3,7 @@ using Discord.Audio;
 using Discord.Commands;
 using Discord.WebSocket;
 using DiscordBot.Services;
+using log4net;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
@@ -10,17 +11,39 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using System.ServiceProcess;
+
+[assembly: log4net.Config.XmlConfigurator(Watch = true)]
 
 namespace DiscordBot
 {
-    class Program
-    {
 
+    public class Program
+    {
+        private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
         private CommandService commands;
         private DiscordSocketClient client;
         private IServiceProvider services;
 
-        static void Main(string[] args) => new Program().MainAsync().GetAwaiter().GetResult();
+        static void Main(string[] args)
+        {
+            if (Environment.UserInteractive)
+            {
+                var x = new Program();
+                x.MainAsync().GetAwaiter().GetResult();
+            }
+            else
+            {
+                using(var service = new ServiceBase())
+                {
+                    var x = new Program();
+                    x.MainAsync().GetAwaiter().GetResult();
+
+                    ServiceBase.Run(service);
+                }
+            }
+        }
+    
 
         public async Task MainAsync()
         {
@@ -37,7 +60,8 @@ namespace DiscordBot
 
             commands = new CommandService();
 
-            string token = ""; // Remember to keep this private!
+            string token = "MzQ0ODgyNjI3NzU0NDU5MTM3.DcO5ww.mRJrDDpDCIPZlWsTgUoaYXnAeRA"; // Remember to keep this private!
+            
             var audioService = new AudioService(client);
 
             services = new ServiceCollection()
