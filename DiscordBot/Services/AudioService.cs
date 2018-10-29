@@ -226,16 +226,15 @@ namespace DiscordBot.Services
 
         private async Task SendAudio(IGuild guild, SongInQueue song)
         {
-                       
+
             if (ConnectedChannels.TryGetValue(guild.Id, out IAudioClient _audio))
             {
-                using(Process ffmpeg = GetFfmpeg(song.FilePath))
+                using (Process ffmpeg = GetFfmpeg(song.FilePath))
                 using (Stream output = ffmpeg.StandardOutput.BaseStream)
                 using (AudioOutStream AudioOutStream = _audio.CreatePCMStream(AudioApplication.Music))
                 {
                     //Adjust?
                     int bufferSize = 4096;
-                    int bytesSent = 0;
                     bool fail = false;
                     bool exit = false;
                     byte[] buffer = new byte[bufferSize];
@@ -264,8 +263,6 @@ namespace DiscordBot.Services
                                     _tcs = new TaskCompletionSource<bool>();
                                 } while (pauseAgain);
                             }
-
-                            bytesSent += read;
                         }
                         catch (TaskCanceledException)
                         {
@@ -282,8 +279,9 @@ namespace DiscordBot.Services
 
         public async Task StartQueue(ICommandContext context, int? underNumber = null)
         {
-            
-            if (IsPlaying){
+
+            if (IsPlaying)
+            {
                 log.Warn("Cant start playing because playing is already in process!");
                 return;
             }
@@ -354,7 +352,7 @@ namespace DiscordBot.Services
                                     //otherwise delete item.
                                     _queue.Remove(song);
 
-                                    if(!song.IsPlayList)
+                                    if (!song.IsPlayList)
                                         File.Delete(song.FilePath);
                                 }
                             }
@@ -379,7 +377,7 @@ namespace DiscordBot.Services
             Skip = true;
             Pause = false;
             var song = _queue.FirstOrDefault();
-            
+
             if (!song.IsPlayList && File.Exists(song.FilePath))
                 File.Delete(song.FilePath);
 
@@ -403,20 +401,29 @@ namespace DiscordBot.Services
                 retVal = false;
             }
 
-            var audioClient = await voiceChannel.ConnectAsync();
-
-            if (ConnectedChannels.TryAdd(guild.Id, audioClient))
+            try
             {
-                Console.WriteLine($"Connected to voice on {guild.Name}.");
-                retVal = true;
-            }
-            else
-            {
-                Console.WriteLine($"Faild to connected to voice on {guild.Name}.");
-                retVal = false;
-            }
+                var audioClient = await voiceChannel.ConnectAsync();
 
-            return retVal;
+
+                if (ConnectedChannels.TryAdd(guild.Id, audioClient))
+                {
+                    Console.WriteLine($"Connected to voice on {guild.Name}.");
+                    retVal = true;
+                }
+                else
+                {
+                    Console.WriteLine($"Faild to connected to voice on {guild.Name}.");
+                    retVal = false;
+                }
+
+                return retVal;
+            }
+            catch (Exception ex)
+            {
+
+                throw ex;
+            }
         }
 
         public async Task LeaveAudio(IGuild guild)
