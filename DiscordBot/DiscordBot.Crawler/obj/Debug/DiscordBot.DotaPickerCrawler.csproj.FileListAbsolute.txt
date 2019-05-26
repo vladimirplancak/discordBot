@@ -1,0 +1,11 @@
+E:\Projects\DiscordBotNewest\DiscordBot\DiscordBot.Crawler\bin\Debug\DiscordBot.Crawler.exe.config
+E:\Projects\DiscordBotNewest\DiscordBot\DiscordBot.Crawler\bin\Debug\DiscordBot.Crawler.exe
+E:\Projects\DiscordBotNewest\DiscordBot\DiscordBot.Crawler\bin\Debug\DiscordBot.Crawler.pdb
+E:\Projects\DiscordBotNewest\DiscordBot\DiscordBot.Crawler\bin\Debug\HtmlAgilityPack.dll
+E:\Projects\DiscordBotNewest\DiscordBot\DiscordBot.Crawler\bin\Debug\HtmlAgilityPack.pdb
+E:\Projects\DiscordBotNewest\DiscordBot\DiscordBot.Crawler\bin\Debug\HtmlAgilityPack.xml
+E:\Projects\DiscordBotNewest\DiscordBot\DiscordBot.Crawler\obj\Debug\DiscordBot.DotaPickerCrawler.csproj.CoreCompileInputs.cache
+E:\Projects\DiscordBotNewest\DiscordBot\DiscordBot.Crawler\obj\Debug\DiscordBot.Crawler.exe
+E:\Projects\DiscordBotNewest\DiscordBot\DiscordBot.Crawler\obj\Debug\DiscordBot.Crawler.pdb
+E:\Projects\DiscordBotNewest\DiscordBot\DiscordBot.Crawler\obj\Debug\DiscordBot.DotaPickerCrawler.csprojAssemblyReference.cache
+E:\Projects\DiscordBotNewest\DiscordBot\DiscordBot.Crawler\obj\Debug\DiscordBot.DotaPickerCrawler.csproj.CopyComplete

@@ -167,10 +167,10 @@ namespace DiscordBot.ComamndModules
         }
 
         [Command("next", RunMode = RunMode.Async), Summary("Skip current song!")]
-        public async Task Next()
+        public async Task Next(int? underNumber = null)
         {
-            var skippedSong = _audioService.Next(Context.Guild, (Context.User as IVoiceState).VoiceChannel);
-            await ReplyAsync($"{  Context.User.Mention } - skipped { skippedSong.Name }!" );
+            var skippedSong = _audioService.Next(Context.Guild, (Context.User as IVoiceState).VoiceChannel, underNumber);
+            await ReplyAsync($"{  Context.User.Mention } - skipped { skippedSong.Name }!");
         }
 
         [Command("pause", RunMode = RunMode.Async), Summary("Pause current song!")]

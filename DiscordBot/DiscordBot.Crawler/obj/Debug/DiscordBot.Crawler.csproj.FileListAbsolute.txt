@@ -1,0 +1,7 @@
+E:\Projects\DiscordBotNewest\DiscordBot\DiscordBot.Crawler\bin\Debug\DiscordBot.Crawler.exe.config
+E:\Projects\DiscordBotNewest\DiscordBot\DiscordBot.Crawler\bin\Debug\DiscordBot.Crawler.exe
+E:\Projects\DiscordBotNewest\DiscordBot\DiscordBot.Crawler\bin\Debug\DiscordBot.Crawler.pdb
+E:\Projects\DiscordBotNewest\DiscordBot\DiscordBot.Crawler\obj\Debug\DiscordBot.Crawler.csprojResolveAssemblyReference.cache
+E:\Projects\DiscordBotNewest\DiscordBot\DiscordBot.Crawler\obj\Debug\DiscordBot.Crawler.csproj.CoreCompileInputs.cache
+E:\Projects\DiscordBotNewest\DiscordBot\DiscordBot.Crawler\obj\Debug\DiscordBot.Crawler.exe
+E:\Projects\DiscordBotNewest\DiscordBot\DiscordBot.Crawler\obj\Debug\DiscordBot.Crawler.pdb

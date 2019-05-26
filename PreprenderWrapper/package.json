@@ -1,0 +1,9 @@
+{
+  "name": "preprender-wrapper",
+  "version": "0.0.0",
+  "description": "PreprenderWrapper",
+  "main": "app.js",
+  "author": {
+    "name": "Vladimir"
+  }
+}

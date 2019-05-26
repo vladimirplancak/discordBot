@@ -2,3 +2,4 @@ DiscordBot/.vs/
 DiscordBot/obj/
 DiscordBot/packages/
 DiscordBot/bin/
+/DiscordBot.Crawler/obj/Debug

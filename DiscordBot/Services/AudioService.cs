@@ -28,10 +28,10 @@ namespace DiscordBot.Services
         private List<SongInQueue> _queue = new List<SongInQueue>();
 
         //TODO: Get from config file.
-        private readonly static string _musicStorage = @"E:/youtubemusic/";
-        private readonly static string _musicPlayListStorage = @"E:/youtubeMusicPlayList/";
+        private readonly static string _musicStorage = @"D:/youtubemusic/";
+        private readonly static string _musicPlayListStorage = @"D:/youtubeMusicPlayList/";
         private readonly DiscordSocketClient _client;
-
+        private static readonly PerformanceCounter _ramMemoryCounter;
         private bool Pause
         {
             get => _internalPause;
@@ -52,6 +52,7 @@ namespace DiscordBot.Services
             }
             set => _internalSkip = value;
         }
+        private int? _skipToSong = null;
         private bool _internalSkip;
         private TaskCompletionSource<bool> _tcs;
         private CancellationTokenSource _disposeToken;
@@ -63,17 +64,12 @@ namespace DiscordBot.Services
             get { return _queue; }
         }
 
-        public event EventHandler<string> OnStartDownloading;
-        public event EventHandler<string> OnFinishDownloading;
-        public event EventHandler<string> OnStartSavingToDisc;
-        public event EventHandler<string> OnFinishSavingToDisc;
-        public event EventHandler<string> OnStartConverting;
-        public event EventHandler<string> OnFinishConverting;
         public event EventHandler<string> OnQueueEmpty;
 
         static AudioService()
         {
             DeleteOldFiles();
+            ///_ramMemoryCounter = new PerformanceCounter("Memory", "Available Mbayts", true);
         }
 
         public AudioService(DiscordSocketClient client)
@@ -144,40 +140,35 @@ namespace DiscordBot.Services
         private SongInQueue PrepareSong(string link)
         {
             Console.WriteLine("Started processing file " + link);
-            var guid = Guid.NewGuid().ToString();
-            var result = new SongInQueue();
+            string guid = Guid.NewGuid().ToString();
+            SongInQueue result = new SongInQueue();
 
             YouTube youtube = YouTube.Default;
-            var fullFilePath = _musicStorage + guid;
-            OnStartDownloading?.Invoke(this, link);
+            string fullFilePath = _musicStorage + guid;
             Video vid = youtube.GetVideo(link);
             Console.WriteLine("Finished downloading file " + link);
-            OnFinishDownloading?.Invoke(this, link);
             result.Name = GetPropperName(vid);
 
-            OnStartSavingToDisc?.Invoke(this, link);
             File.WriteAllBytes(fullFilePath, vid.GetBytes());
             Console.WriteLine("Finished saving file to the disc.");
-            OnFinishSavingToDisc?.Invoke(this, link);
 
-            var inputFile = new MediaFile { Filename = fullFilePath };
+            var inputFile = new MediaFile(fullFilePath);
             var fullFilePathWithExtension = $"{fullFilePath}.mp3";
-            var outputFile = new MediaFile { Filename = fullFilePathWithExtension };
+            var outputFile = new MediaFile (fullFilePathWithExtension);
 
             result.FilePath = fullFilePathWithExtension;
 
-            OnStartConverting?.Invoke(this, link);
             var convertSW = new Stopwatch();
-            using (var engine = new Engine())
+            using (var convertEngine = new Engine())
             {
-                engine.GetMetadata(inputFile);
+                convertEngine.GetMetadata(inputFile);
                 convertSW.Start();
-                engine.Convert(inputFile, outputFile);
+                convertEngine.Convert(inputFile, outputFile);
                 convertSW.Stop();
-
+                //convertEngine.ConvertProgressEvent += ConvertEngine_ConvertProgressEvent;
+                
             }
             Console.WriteLine($"Finished convering. Time: { convertSW.Elapsed.ToString() }");
-            OnFinishConverting?.Invoke(this, link);
 
             if (File.Exists(fullFilePath))
             {
@@ -190,6 +181,11 @@ namespace DiscordBot.Services
 
             Console.WriteLine("Finished processing file " + link);
             return result;
+        }
+
+        private void ConvertEngine_ConvertProgressEvent(object sender, ConvertProgressEventArgs e)
+        {
+            //Console.WriteLine($"Current memory usage: { _ramMemoryCounter.NextValue().ToString() } MB");
         }
 
         private static Process GetFfmpeg(string path)
@@ -212,7 +208,7 @@ namespace DiscordBot.Services
                 var songInQueue = PrepareSong(link);
                 songInQueue.QueueBy = user;
                 songInQueue.PersistInQueue = persist;
-                _queue.AddToTheEnd(songInQueue);
+                _queue.Add(songInQueue);
                 Console.WriteLine($"Added { songInQueue.Name } to queue.");
 
                 return songInQueue;
@@ -329,6 +325,13 @@ namespace DiscordBot.Services
                                 //Since C# lists are zero based, we have to decrement by one.
                                 song = _queue.ElementAtOrDefault(underNumber.Value - 1);
                             }
+                            else if(_skipToSong.HasValue)
+                            {
+                                //Since C# lists are zero based, we have to decrement by one.
+                                song = _queue.ElementAtOrDefault(_skipToSong.Value - 1);
+                                if (song == null)
+                                    song = _queue.FirstOrDefault();
+                            }
                             else
                             {
                                 song = _queue.FirstOrDefault();
@@ -371,12 +374,12 @@ namespace DiscordBot.Services
             }
         }
 
-
-        public SongInQueue Next(IGuild guild, IVoiceChannel target)
+        public SongInQueue Next(IGuild guild, IVoiceChannel target, int? underNumber = null)
         {
+            _skipToSong = underNumber; 
             Skip = true;
             Pause = false;
-            var song = _queue.FirstOrDefault();
+            var song = _queue.FirstOrDefault(it => it.IsPlaying);
 
             if (!song.IsPlayList && File.Exists(song.FilePath))
                 File.Delete(song.FilePath);
@@ -385,8 +388,6 @@ namespace DiscordBot.Services
 
             return song;
         }
-
-
 
         public async Task<bool> JoinAudio(IGuild guild, IVoiceChannel voiceChannel)
         {

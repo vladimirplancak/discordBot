@@ -60,7 +60,7 @@ namespace DiscordBot
 
             commands = new CommandService();
 
-            string token = ""; // Remember to keep this private!
+            string token = "MzQ0ODgyNjI3NzU0NDU5MTM3.DcO5ww.mRJrDDpDCIPZlWsTgUoaYXnAeRA"; // Remember to keep this private!
             
             var audioService = new AudioService(client);
 

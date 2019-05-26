@@ -23,7 +23,6 @@ E:\Projects\DiscordBotNewest\DiscordBot.WindowsService\bin\Debug\Discord.Net.Cor
 E:\Projects\DiscordBotNewest\DiscordBot.WindowsService\bin\Debug\Discord.Net.Rest.xml
 E:\Projects\DiscordBotNewest\DiscordBot.WindowsService\bin\Debug\Microsoft.Extensions.DependencyInjection.xml
 E:\Projects\DiscordBotNewest\DiscordBot.WindowsService\bin\Debug\Microsoft.Extensions.DependencyInjection.Abstractions.xml
-E:\Projects\DiscordBotNewest\DiscordBot.WindowsService\obj\Debug\DiscordBot.WindowsService.csprojResolveAssemblyReference.cache
 E:\Projects\DiscordBotNewest\DiscordBot.WindowsService\obj\Debug\DiscordBot.WindowsService.csproj.CoreCompileInputs.cache
 E:\Projects\DiscordBotNewest\DiscordBot.WindowsService\obj\Debug\DiscordBot.WindowsService.exe
 E:\Projects\DiscordBotNewest\DiscordBot.WindowsService\obj\Debug\DiscordBot.WindowsService.pdb
@@ -34,3 +33,5 @@ E:\Projects\DiscordBotNewest\DiscordBot.WindowsService\bin\Debug\System.Interact
 E:\Projects\DiscordBotNewest\DiscordBot.WindowsService\bin\Debug\Newtonsoft.Json.xml
 E:\Projects\DiscordBotNewest\DiscordBot.WindowsService\bin\Debug\DiscordBot.exe
 E:\Projects\DiscordBotNewest\DiscordBot.WindowsService\bin\Debug\DiscordBot.exe.config
+E:\Projects\DiscordBotNewest\DiscordBot.WindowsService\obj\Debug\DiscordBot.WindowsService.csprojAssemblyReference.cache
+E:\Projects\DiscordBotNewest\DiscordBot.WindowsService\obj\Debug\DiscordBot.WindowsService.csproj.CopyComplete

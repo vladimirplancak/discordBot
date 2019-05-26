@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 
 namespace DiscordBot.ComamndModules
 {
-    [Group("debug")]
     public class InfoModule : ModuleBase
     {
 
