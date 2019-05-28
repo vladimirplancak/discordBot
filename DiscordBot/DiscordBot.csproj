@@ -181,6 +181,7 @@
   <ItemGroup>
     <Compile Include="ComamndModules\AudioCommands.cs" />
     <Compile Include="ComamndModules\DebugCommands.cs" />
+    <Compile Include="ComamndModules\EventCommands.cs" />
     <Compile Include="ComamndModules\HelpCommands.cs" />
     <Compile Include="Extensions\SongInQueueExtensions.cs" />
     <Compile Include="Models\QueueItem.cs" />
