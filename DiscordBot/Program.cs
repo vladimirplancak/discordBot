@@ -23,6 +23,7 @@ namespace DiscordBot
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
         private CommandService commands;
         private DiscordSocketClient client;
+        private EventService eventService;
         private IServiceProvider services;
 
         static void Main(string[] args)
@@ -58,21 +59,28 @@ namespace DiscordBot
                 return Task.CompletedTask;
             };
 
+            
+
             commands = new CommandService();
 
             string token = "MzQ0ODgyNjI3NzU0NDU5MTM3.DcO5ww.mRJrDDpDCIPZlWsTgUoaYXnAeRA"; // Remember to keep this private!
-            
-            var audioService = new AudioService(client);
+
+            AudioService audioService = new AudioService(client);
+            eventService = new EventService(client);
 
             services = new ServiceCollection()
                 .AddSingleton(commands)
                 .AddSingleton(audioService)
+                .AddSingleton(eventService)
                 .BuildServiceProvider();
 
             await InstallCommands();
 
             await client.LoginAsync(TokenType.Bot, token);
             await client.StartAsync();
+
+
+
 
             // Block this task until the program is closed.
             await Task.Delay(-1);
@@ -88,6 +96,7 @@ namespace DiscordBot
         {
             // Hook the MessageReceived Event into our Command Handler
             client.MessageReceived += HandleCommand;
+
             // Discover all of the commands in this assembly and load them.
             await commands.AddModulesAsync(Assembly.GetEntryAssembly());
         }

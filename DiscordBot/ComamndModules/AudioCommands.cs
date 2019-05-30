@@ -70,7 +70,7 @@ namespace DiscordBot.ComamndModules
         public async Task JoinCmd([Summary("Id of the voice channel.")] ulong? channelId = null)
         {
             var hasJoined = false;
-            var errorMessage = "```Voice channel not found. Please user correct id for voice channel, or join one of the channels that bot has privileges to join and execute command again.```";
+            var errorMessage = "Voice channel not found. Please user correct id for voice channel, or join one of the channels that bot has privileges to join and execute command again.";
 
             if (channelId.HasValue)
             {
