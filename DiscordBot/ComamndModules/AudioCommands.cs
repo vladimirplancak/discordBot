@@ -157,9 +157,9 @@ namespace DiscordBot.ComamndModules
             var i = 1;
             foreach(var song in _audioService.Queue)
             {
-                string isPlaying = song.IsPlaying ? " - playing! " : "";
+                string isPlaying = song.Value.IsPlaying ? " - playing! " : "";
                
-                retVal += i + ". " + song.Name + " " + isPlaying + "\n";
+                retVal += i + ". " + song.Value.Name + " " + isPlaying + "\n";
                 i++;
             }
 

@@ -72,6 +72,7 @@ namespace DiscordBot
                 .AddSingleton(commands)
                 .AddSingleton(audioService)
                 .AddSingleton(eventService)
+                .AddSingleton(client)
                 .BuildServiceProvider();
 
             await InstallCommands();
