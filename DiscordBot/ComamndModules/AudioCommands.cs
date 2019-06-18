@@ -130,6 +130,12 @@ namespace DiscordBot.ComamndModules
             await _audioService.StartQueue(Context, underNumber);
         }
 
+        [Command("stop", RunMode = RunMode.Async), Summary("Stop queue")]
+        public async Task StopCommand([Summary("TODO")] int? underNumber = null)
+        {
+            await _audioService.StopQueue();
+        }
+
 
         [Command("add", RunMode = RunMode.Async), Summary("Queues new song.")]
         public async Task Queue(
@@ -157,9 +163,9 @@ namespace DiscordBot.ComamndModules
             var i = 1;
             foreach(var song in _audioService.Queue)
             {
-                string isPlaying = song.IsPlaying ? " - playing! " : "";
+                string isPlaying = song.Value.IsPlaying ? " - playing! " : "";
                
-                retVal += i + ". " + song.Name + " " + isPlaying + "\n";
+                retVal += i + ". " + song.Value.Name + " " + isPlaying + "\n";
                 i++;
             }
 

@@ -15,5 +15,10 @@ namespace DiscordBot.Models
         public IUser QueueBy;
         public bool PersistInQueue { get; set; }
         public bool IsPlayList { get; set; } = false;
+
+        public override string ToString()
+        {
+            return $@"song name: { Name }, path: { FilePath }";
+        }
     }
 }
