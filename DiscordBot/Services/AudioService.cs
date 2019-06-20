@@ -29,7 +29,6 @@ namespace DiscordBot.Services
         private readonly static string _musicStorage = @"D:/youtubemusic/";
         private readonly static string _musicPlayListStorage = @"D:/youtubeMusicPlayList/";
         private readonly DiscordSocketClient _client;
-        private static readonly PerformanceCounter _ramMemoryCounter;
         private bool Pause
         {
             get => _internalPause;
@@ -42,36 +41,24 @@ namespace DiscordBot.Services
         private bool _internalPause;
 
 
-        private bool _skip = false;
-        private bool Skip
-        {
-            get
-            {
-                return _skip;
-            }
-            set
-            {
-                LogMessage($"Setting skip value to { value }");
-                _skip = value;
-            }
-        }
+        private static bool _skip = false;
 
         private int? _skipToSong = null;
         private TaskCompletionSource<bool> _tcs;
         private CancellationTokenSource _disposeToken;
-        private bool QueueIsRunning = false;
-        private DateTime OnQueueEmptyCalled;
+        private static bool QueueIsRunning = false;
         private readonly object locker = new object();
         public bool PopulateSystemPlayList = false;
+        private static Thread QueueThread;
 
-        public ConcurrentDictionary<string, SongInQueue> Queue { get; } = new ConcurrentDictionary<string, SongInQueue>();
+        public ConcurrentDictionary<int, SongInQueue> Queue { get; } = new ConcurrentDictionary<int, SongInQueue>();
 
         public event EventHandler<string> OnQueueEmpty;
 
         static AudioService()
         {
             DeleteOldFiles();
-            ///_ramMemoryCounter = new PerformanceCounter("Memory", "Available Mbayts", true);
+            
         }
 
         public AudioService(DiscordSocketClient client)
@@ -112,9 +99,74 @@ namespace DiscordBot.Services
                     };
 
                     LogMessage($"Adding song { songToQueue.Name }");
-                    Queue.TryAdd(Guid.NewGuid().ToString(), songToQueue);
+                    Queue.TryAdd(Queue.Count() +1, songToQueue);
                 }
                 LogMessage("Finished populating playlist.");
+            }
+        }
+
+        private async Task StartQueueThread(ICommandContext context, int? underNumber = null)
+        {
+            if (ConnectedChannels.IsEmpty)
+            {
+                LogMessage("Add client to the chanel, then start queue!");
+                return;
+            }
+                
+            QueueIsRunning = true;
+
+            LogMessage($"Starting queue! with queue items: { Queue.Count }");
+
+            while (!Queue.IsEmpty && QueueIsRunning)
+            {
+                try
+                {
+                    //GetFirstSong
+                    if (TryGetSongToPlay(out KeyValuePair<int, SongInQueue> kvSong))
+                    {
+                        SongInQueue song = kvSong.Value;
+
+                        LogMessage($"Song found in the queue { song.ToString() }");
+
+                        song.IsPlaying = true;
+                        await SendAudio(context.Guild, song);
+                        song.IsPlaying = false;
+
+                        LogMessage($"Finished playing song: { song.ToString() }");
+
+                        if (Queue.TryRemove(kvSong.Key, out SongInQueue removedSong))
+                        {
+                            LogMessage($"Song successfully removed from queue: { removedSong.ToString() }");
+                            if (!song.IsPlayList && File.Exists(song.FilePath))
+                            {
+                                File.Delete(song.FilePath);
+                            }
+                        }
+                        else
+                        {
+                            LogMessage($"Failed to remove song from the queue: { removedSong.ToString() }");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    QueueIsRunning = false;
+                    throw ex;
+                }
+            }
+
+            QueueIsRunning = false;
+            LogMessage("Queue is empty, stopping queue...");
+
+            bool TryGetSongToPlay(out KeyValuePair<int, SongInQueue> kvSong)
+            {
+                kvSong = Queue.FirstOrDefault();
+                SongInQueue song = kvSong.Value;
+
+                if (_skipToSong.HasValue && Queue.TryGetValue(_skipToSong.Value, out SongInQueue songToSkipTo))
+                    song = songToSkipTo;
+
+                return song != null;
             }
         }
 
@@ -141,56 +193,59 @@ namespace DiscordBot.Services
 
         private SongInQueue PrepareSong(string link)
         {
-            LogMessage("Started processing file " + link);
-            string guid = Guid.NewGuid().ToString();
-            SongInQueue result = new SongInQueue();
-
-            YouTube youtube = YouTube.Default;
-            string fullFilePath = _musicStorage + guid;
-            Video vid = youtube.GetVideo(link);
-            LogMessage("Finished downloading file " + link);
-            result.Name = GetPropperName(vid);
-
-            File.WriteAllBytes(fullFilePath, vid.GetBytes());
-            LogMessage("Finished saving file to the disc.");
-
-            var inputFile = new MediaFile(fullFilePath);
-            var fullFilePathWithExtension = $"{fullFilePath}.mp3";
-            var outputFile = new MediaFile (fullFilePathWithExtension);
-
-            result.FilePath = fullFilePathWithExtension;
-
-            var convertSW = new Stopwatch();
-            using (var convertEngine = new Engine())
+            try
             {
-                convertEngine.GetMetadata(inputFile);
-                convertSW.Start();
-                convertEngine.Convert(inputFile, outputFile);
-                convertSW.Stop();
-                //convertEngine.ConvertProgressEvent += ConvertEngine_ConvertProgressEvent;
-                
-            }
-            LogMessage($"Finished convering. Time: { convertSW.Elapsed.ToString() }");
+                LogMessage("Started processing file " + link);
+                string guid = Guid.NewGuid().ToString();
+                SongInQueue result = new SongInQueue();
 
-            if (File.Exists(fullFilePath))
-            {
-                File.Delete(fullFilePath);
+                YouTube youtube = YouTube.Default;
+                string fullFilePath = _musicStorage + guid;
+                Video vid = youtube.GetVideo(link);
+                LogMessage("Finished downloading file " + link);
+                result.Name = GetPropperName(vid);
+
+                File.WriteAllBytes(fullFilePath, vid.GetBytes());
+                LogMessage("Finished saving file to the disc.");
+
+                var inputFile = new MediaFile(fullFilePath);
+                var fullFilePathWithExtension = $"{fullFilePath}.mp3";
+                var outputFile = new MediaFile(fullFilePathWithExtension);
+
+                result.FilePath = fullFilePathWithExtension;
+
+                var convertSW = new Stopwatch();
+                using (Engine convertEngine = new Engine())
+                {
+                    convertEngine.GetMetadata(inputFile);
+                    convertSW.Start();
+                    convertEngine.Convert(inputFile, outputFile);
+                    convertSW.Stop();
+                }
+
+                LogMessage($"Finished convering. Time: { convertSW.Elapsed.ToString() }");
+
+                if (File.Exists(fullFilePath))
+                {
+                    File.Delete(fullFilePath);
+                }
+                else
+                {
+                    throw new NotImplementedException();
+                }
+
+                LogMessage("Finished processing file " + link);
+                return result;
             }
-            else
+            catch (Exception ex)
             {
-                throw new NotImplementedException();
+                LogMessage($"Failed to prepare file:  { ex }");
             }
 
-            LogMessage("Finished processing file " + link);
-            return result;
+            return null;
         }
 
-        private void ConvertEngine_ConvertProgressEvent(object sender, ConvertProgressEventArgs e)
-        {
-            //LogMessage($"Current memory usage: { _ramMemoryCounter.NextValue().ToString() } MB");
-        }
-
-        private static Process GetFfmpeg(string path)
+        private static Process GetFfmpegProcess(string path)
         {
             ProcessStartInfo ffmpeg = new ProcessStartInfo
             {
@@ -204,7 +259,7 @@ namespace DiscordBot.Services
 
         private void LogMessage(string message)
         {
-            Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {message}");
+            Console.WriteLine($"[{DateTime.Now.ToString("hh:mm:ss")}] - [{Thread.CurrentThread.ManagedThreadId}] {message}");
         }
 
         public SongInQueue AddToQueue(string link, IUser user, bool persist = false)
@@ -215,7 +270,7 @@ namespace DiscordBot.Services
                 var songInQueue = PrepareSong(link);
                 songInQueue.QueueBy = user;
                 songInQueue.PersistInQueue = persist;
-                Queue.TryAdd(Guid.NewGuid().ToString(), songInQueue);
+                Queue.TryAdd(Queue.Count + 1, songInQueue);
                 LogMessage($"Added { songInQueue.Name } to queue.");
 
                 return songInQueue;
@@ -285,7 +340,7 @@ namespace DiscordBot.Services
 
             if (ConnectedChannels.TryGetValue(guild.Id, out IAudioClient _audio))
             {
-                using (Process ffmpeg = GetFfmpeg(song.FilePath))
+                using (Process ffmpeg = GetFfmpegProcess(song.FilePath))
                 using (Stream output = ffmpeg.StandardOutput.BaseStream)
                 using (AudioOutStream AudioOutStream = _audio.CreatePCMStream(AudioApplication.Music))
                 {
@@ -295,216 +350,80 @@ namespace DiscordBot.Services
                     bool exit = false;
                     byte[] buffer = new byte[bufferSize];
 
-                    while (!Skip && !fail && !_disposeToken.IsCancellationRequested && !exit)
+                    while (!_skip && !fail && !_disposeToken.IsCancellationRequested && !exit)
                     {
                         try
                         {
                             int read = await output.ReadAsync(buffer, 0, bufferSize, _disposeToken.Token);
+
                             if (read == 0)
-                            {
-                                //No more data available
-                                exit = true;
                                 break;
-                            }
 
                             await AudioOutStream.WriteAsync(buffer, 0, read, _disposeToken.Token);
 
-                            //if (Pause)
-                            //{
-                            //    bool pauseAgain;
-
-                            //    do
-                            //    {
-                            //        pauseAgain = await _tcs.Task;
-                            //        _tcs = new TaskCompletionSource<bool>();
-                            //    } while (pauseAgain);
-                            //}
                         }
-                        catch (TaskCanceledException)
+                        catch (TaskCanceledException tce)
                         {
+                            LogMessage($"Task Canceled exception { tce.ToString() }");
                             exit = true;
                         }
                         catch
                         {
                             fail = true;
                         }
-
-                        var tsc = new TaskCompletionSource<bool>();
-
-                        
                     }
+
                     Thread.Sleep(2 * 1000); // let all buffered data go out.
+                    _skip = false;
                 }
             }
         }
-
-        //public async Task StartQueue(ICommandContext context, int? underNumber = null)
-        //{
-
-        //    if (IsPlaying)
-        //    {
-        //        log.Warn("Cant start playing because playing is already in process!");
-        //        return;
-        //    }
-        //    IsPlaying = true;
-
-
-        //    bool next = true;
-
-
-        //    while (true)
-        //    {
-        //        LogMessage("Starting queue pool (entering while loop)");
-
-        //        bool pause = false;
-        //        //Next song if current is over
-        //        if (!next)
-        //        {
-        //            IsPlaying = false;
-        //            pause = await _tcs.Task;
-        //            _tcs = new TaskCompletionSource<bool>();
-        //        }
-        //        else
-        //        {
-        //            next = false;
-        //        }
-
-        //        try
-        //        {
-        //            if (_queue.Count == 0)
-        //            {
-        //                LogMessage("Queue empty - ended");
-        //                //Event is fiering twice. 
-        //                OnQueueEmpty?.Invoke(this, null);
-        //                break;
-        //            }
-        //            else
-        //            {
-        //                if (!pause)
-        //                {
-        //                    //Get Song
-        //                    SongInQueue song;
-
-        //                    if (underNumber.HasValue)
-        //                    {
-        //                        //Since C# lists are zero based, we have to decrement by one.
-        //                        song = _queue.ElementAtOrDefault(underNumber.Value - 1);
-        //                    }
-        //                    else if(_skipToSong.HasValue)
-        //                    {
-        //                        //Since C# lists are zero based, we have to decrement by one.
-        //                        song = _queue.ElementAtOrDefault(_skipToSong.Value - 1);
-        //                        if (song == null)
-        //                            song = _queue.FirstOrDefault();
-        //                    }
-        //                    else
-        //                    {
-        //                        song = _queue.FirstOrDefault();
-        //                    }
-
-        //                    //Send audio (Long Async blocking, Read/Write stream)
-        //                    song.IsPlaying = true;
-        //                    await SendAudio(context.Guild, song);
-        //                    song.IsPlaying = false;
-
-        //                    try
-        //                    {
-        //                        //Check if song should be persistant.
-        //                        if (song.PersistInQueue)
-        //                        {
-        //                            //Persist song at the end of the queue
-        //                            _queue.Add(song);
-        //                        }
-        //                        else
-        //                        {
-        //                            //otherwise delete item.
-        //                            _queue.Remove(song);
-
-        //                            if (!song.IsPlayList)
-        //                                File.Delete(song.FilePath);
-        //                        }
-        //                    }
-        //                    catch
-        //                    {
-        //                        // ignored
-        //                    }
-        //                    next = true;
-        //                }
-        //            }
-        //        }
-        //        catch
-        //        {
-        //            //audio can't be played
-        //        }
-        //    }
-        //}
-
+        
         public async Task StartQueue(ICommandContext context, int? underNumber = null)
         {
-            QueueIsRunning = true;
-            LogMessage($"Starting queue! with queue items: { Queue.Count }");
-
-            while (!Queue.IsEmpty && QueueIsRunning)
+            
+            if (QueueThread == null)
             {
-                try
-                {
-                    //GetFirstSong
-                    KeyValuePair<string, SongInQueue> queueSong = Queue.FirstOrDefault();
-                    SongInQueue song = queueSong.Value;
-
-
-                    if (song == null || ConnectedChannels.IsEmpty)
-                        break;
-
-                    LogMessage($"Song found in the queue { queueSong.Value.ToString() }");
-
-                    song.IsPlaying = true;
-                    await SendAudio(context.Guild, queueSong.Value);
-                    song.IsPlaying = false;
-                    LogMessage($"Finished playing song: { song.ToString() }");
-
-                    if (Queue.TryRemove(queueSong.Key, out SongInQueue removedSong))
-                    {
-                        LogMessage($"Song successfully removed from queue: { removedSong.ToString() }");
-                        if (!song.IsPlayList && File.Exists(song.FilePath))
-                        {
-                            File.Delete(song.FilePath);
-                        }
-                    }
-                    else
-                    {
-                        LogMessage($"Failed to remove song from the queue: { removedSong.ToString() }");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    QueueIsRunning = false;
-                    throw ex;
-                }
+                LogMessage("QueueThread is null, create new one...");
+                QueueThread = new Thread(async () => await StartQueueThread(context, underNumber));
+                QueueThread.Start();
             }
-
-            LogMessage("Queue is empty!");
+            else if (!QueueThread.IsAlive)
+            {
+                LogMessage("QueuThread is no longer alive, create new one and start it again...");
+                QueueThread = new Thread(async () => await StartQueueThread(context, underNumber));
+                QueueThread.Start();
+            }
+            else
+            {
+                LogMessage("Queue thread is already running!");
+            }
         }
 
         public async Task StopQueue()
         {
-            QueueIsRunning = false;
-            Skip = true;
+            //QueueIsRunning = false;
+            _skip = true;
         }
 
-        public SongInQueue Next(IGuild guild, IVoiceChannel target, int? underNumber = null)
+        
+        public (SongInQueue song, bool IsSuccess) TrySkip(IGuild guild, IVoiceChannel target, int? underNumber = null)
         {
-            _skipToSong = underNumber; 
-            Skip = true;
-            Pause = false;
-            var song = Queue.FirstOrDefault(it => it.Value.IsPlaying).Value;
+            _skipToSong = underNumber;
 
-            if (!song.IsPlayList && File.Exists(song.FilePath))
-                File.Delete(song.FilePath);
+            KeyValuePair<int, SongInQueue> skippedKvSong = Queue.FirstOrDefault(it => it.Value.IsPlaying);
+            SongInQueue skippedSong = skippedKvSong.Value;
 
-            _tcs = new TaskCompletionSource<bool>();
+            if (skippedSong == null)
+                throw new ArgumentNullException(nameof(skippedSong));
 
-            return song;
+
+            if (underNumber.HasValue && skippedKvSong.Key == underNumber.Value)
+                return (skippedSong, false);
+
+            _skip = true;
+
+            return (skippedSong, true);
         }
 
         public async Task<bool> JoinAudio(IGuild guild, IVoiceChannel voiceChannel)

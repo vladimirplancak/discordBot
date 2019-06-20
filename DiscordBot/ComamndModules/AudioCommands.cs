@@ -1,5 +1,6 @@
 ﻿using Discord;
 using Discord.Commands;
+using DiscordBot.Models;
 using DiscordBot.Services;
 using System;
 using System.Threading.Tasks;
@@ -147,11 +148,11 @@ namespace DiscordBot.ComamndModules
 
             if (addedItem != null)
             {
-                Replay("{ addedItem.Name } - Added to queue!");
+                Replay($"{ addedItem.Name } - Added to queue!");
             }
             else
             {
-                Replay("{ link } - was not able to be processed!");
+                Replay($"{ link } - was not able to be processed!");
             }
         }
 
@@ -175,8 +176,17 @@ namespace DiscordBot.ComamndModules
         [Command("next", RunMode = RunMode.Async), Summary("Skip current song!")]
         public async Task Next(int? underNumber = null)
         {
-            var skippedSong = _audioService.Next(Context.Guild, (Context.User as IVoiceState).VoiceChannel, underNumber);
-            await ReplyAsync($"{  Context.User.Mention } - skipped { skippedSong.Name }!");
+            (SongInQueue song, bool IsSuccess) = _audioService.TrySkip(Context.Guild, (Context.User as IVoiceState).VoiceChannel, underNumber);
+
+            if (IsSuccess)
+            {
+                await ReplyAsync($"{  Context.User.Mention } - skipped { song.Name }!");
+            }
+            else
+            {
+                Replay($"Failed to play next song!");
+            }
+            
         }
 
         [Command("pause", RunMode = RunMode.Async), Summary("Pause current song!")]
