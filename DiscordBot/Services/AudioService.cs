@@ -23,42 +23,41 @@ namespace DiscordBot.Services
     public class AudioService
     {
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
-        private readonly ConcurrentDictionary<ulong, IAudioClient> ConnectedChannels = new ConcurrentDictionary<ulong, IAudioClient>();
 
+        #region private fields used for settings
         //TODO: Get from config file.
         private readonly static string _musicStorage = @"D:/youtubemusic/";
         private readonly static string _musicPlayListStorage = @"D:/youtubeMusicPlayList/";
+        public bool PopulateSystemPlayList = false;
+        #endregion
+
         private readonly DiscordSocketClient _client;
-        private bool Pause
-        {
-            get => _internalPause;
-            set
-            {
-                new Thread(() => _tcs.TrySetResult(value)).Start();
-                _internalPause = value;
-            }
-        }
-        private bool _internalPause;
-
-
-        private static bool _skip = false;
-
-        private int? _skipToSong = null;
         private TaskCompletionSource<bool> _tcs;
         private CancellationTokenSource _disposeToken;
-        private static bool QueueIsRunning = false;
-        private readonly object locker = new object();
-        public bool PopulateSystemPlayList = false;
-        private static Thread QueueThread;
 
-        public ConcurrentDictionary<int, SongInQueue> Queue { get; } = new ConcurrentDictionary<int, SongInQueue>();
+        private readonly ConcurrentDictionary<int, SongInQueue> _queue = new ConcurrentDictionary<int, SongInQueue>();
+        private readonly ConcurrentDictionary<ulong, IAudioClient> ConnectedChannels = new ConcurrentDictionary<ulong, IAudioClient>();
 
-        public event EventHandler<string> OnQueueEmpty;
+        #region #Private fields used by queue
+        private static Thread _queueThread;
+        private int? _skipToSong = null;
+        private static bool _skip = false;
+        private static bool _queueIsRunning = false;
+        #endregion
 
+        public IEnumerable<KeyValuePair<int, SongInQueue>> QueueItems
+        {
+            get
+            {
+                return _queue.AsEnumerable();
+            }
+        }
+
+        #region ctor
         static AudioService()
         {
             DeleteOldFiles();
-            
+
         }
 
         public AudioService(DiscordSocketClient client)
@@ -69,41 +68,15 @@ namespace DiscordBot.Services
 
             _client.Ready += () =>
             {
-                if(PopulateSystemPlayList)
+                if (PopulateSystemPlayList)
                     GetSongsFromPlayList();
 
                 return Task.CompletedTask;
             };
         }
+        #endregion ctor
 
-        public void GetSongsFromPlayList()
-        {
-            if (!Directory.Exists(_musicPlayListStorage))
-            {
-                Directory.CreateDirectory(_musicPlayListStorage);
-            }
-            else
-            {
-                LogMessage("Started populating playlist.");
-                var files = Directory.GetFiles(_musicPlayListStorage);
-                foreach (var file in files)
-                {
-                    var fileName = Path.GetFileName(file);
-                    var songToQueue = new SongInQueue()
-                    {
-                        FilePath = file,
-                        Name = fileName,
-                        PersistInQueue = false,
-                        IsPlayList = true,
-                        QueueBy = _client.CurrentUser
-                    };
 
-                    LogMessage($"Adding song { songToQueue.Name }");
-                    Queue.TryAdd(Queue.Count() +1, songToQueue);
-                }
-                LogMessage("Finished populating playlist.");
-            }
-        }
 
         private async Task StartQueueThread(ICommandContext context, int? underNumber = null)
         {
@@ -112,12 +85,12 @@ namespace DiscordBot.Services
                 LogMessage("Add client to the chanel, then start queue!");
                 return;
             }
-                
-            QueueIsRunning = true;
 
-            LogMessage($"Starting queue! with queue items: { Queue.Count }");
+            _queueIsRunning = true;
 
-            while (!Queue.IsEmpty && QueueIsRunning)
+            LogMessage($"Starting queue! with queue items: { _queue.Count }");
+
+            while (!_queue.IsEmpty && _queueIsRunning)
             {
                 try
                 {
@@ -134,7 +107,7 @@ namespace DiscordBot.Services
 
                         LogMessage($"Finished playing song: { song.ToString() }");
 
-                        if (Queue.TryRemove(kvSong.Key, out SongInQueue removedSong))
+                        if (_queue.TryRemove(kvSong.Key, out SongInQueue removedSong))
                         {
                             LogMessage($"Song successfully removed from queue: { removedSong.ToString() }");
                             if (!song.IsPlayList && File.Exists(song.FilePath))
@@ -150,20 +123,20 @@ namespace DiscordBot.Services
                 }
                 catch (Exception ex)
                 {
-                    QueueIsRunning = false;
+                    _queueIsRunning = false;
                     throw ex;
                 }
             }
 
-            QueueIsRunning = false;
+            _queueIsRunning = false;
             LogMessage("Queue is empty, stopping queue...");
 
             bool TryGetSongToPlay(out KeyValuePair<int, SongInQueue> kvSong)
             {
-                kvSong = Queue.FirstOrDefault();
+                kvSong = _queue.FirstOrDefault();
                 SongInQueue song = kvSong.Value;
 
-                if (_skipToSong.HasValue && Queue.TryGetValue(_skipToSong.Value, out SongInQueue songToSkipTo))
+                if (_skipToSong.HasValue && _queue.TryGetValue(_skipToSong.Value, out SongInQueue songToSkipTo))
                     song = songToSkipTo;
 
                 return song != null;
@@ -262,79 +235,6 @@ namespace DiscordBot.Services
             Console.WriteLine($"[{DateTime.Now.ToString("hh:mm:ss")}] - [{Thread.CurrentThread.ManagedThreadId}] {message}");
         }
 
-        public SongInQueue AddToQueue(string link, IUser user, bool persist = false)
-        {
-
-            try
-            {
-                var songInQueue = PrepareSong(link);
-                songInQueue.QueueBy = user;
-                songInQueue.PersistInQueue = persist;
-                Queue.TryAdd(Queue.Count + 1, songInQueue);
-                LogMessage($"Added { songInQueue.Name } to queue.");
-
-                return songInQueue;
-            }
-            catch (Exception ex)
-            {
-                LogMessage(ex.ToString());
-                return null;
-            }
-        }
-
-        //private async Task SendAudio(IGuild guild, SongInQueue song)
-        //{
-
-        //    if (ConnectedChannels.TryGetValue(guild.Id, out IAudioClient _audio))
-        //    {
-        //        using (Process ffmpeg = GetFfmpeg(song.FilePath))
-        //        using (Stream output = ffmpeg.StandardOutput.BaseStream)
-        //        using (AudioOutStream AudioOutStream = _audio.CreatePCMStream(AudioApplication.Music))
-        //        {
-        //            //Adjust?
-        //            int bufferSize = 4096;
-        //            bool fail = false;
-        //            bool exit = false;
-        //            byte[] buffer = new byte[bufferSize];
-                    
-        //            while (!Skip && !fail && !_disposeToken.IsCancellationRequested && !exit)
-        //            {
-        //                try
-        //                {
-        //                    int read = await output.ReadAsync(buffer, 0, bufferSize, _disposeToken.Token);
-        //                    if (read == 0)
-        //                    {
-        //                        //No more data available
-        //                        exit = true;
-        //                        break;
-        //                    }
-
-        //                    await AudioOutStream.WriteAsync(buffer, 0, read, _disposeToken.Token);
-
-        //                    if (Pause)
-        //                    {
-        //                        bool pauseAgain;
-
-        //                        do
-        //                        {
-        //                            pauseAgain = await _tcs.Task;
-        //                            _tcs = new TaskCompletionSource<bool>();
-        //                        } while (pauseAgain);
-        //                    }
-        //                }
-        //                catch (TaskCanceledException)
-        //                {
-        //                    exit = true;
-        //                }
-        //                catch
-        //                {
-        //                    fail = true;
-        //                }
-        //            }
-        //        }
-        //    }
-        //}
-
         private async Task SendAudio(IGuild guild, SongInQueue song)
         {
 
@@ -378,21 +278,123 @@ namespace DiscordBot.Services
                 }
             }
         }
-        
+
+        public void GetSongsFromPlayList()
+        {
+            if (!Directory.Exists(_musicPlayListStorage))
+            {
+                Directory.CreateDirectory(_musicPlayListStorage);
+            }
+            else
+            {
+                LogMessage("Started populating playlist.");
+                var files = Directory.GetFiles(_musicPlayListStorage);
+                foreach (var file in files)
+                {
+                    var fileName = Path.GetFileName(file);
+                    var songToQueue = new SongInQueue()
+                    {
+                        FilePath = file,
+                        Name = fileName,
+                        PersistInQueue = false,
+                        IsPlayList = true,
+                        QueueBy = _client.CurrentUser
+                    };
+
+                    LogMessage($"Adding song { songToQueue.Name }");
+                    _queue.TryAdd(_queue.Count() + 1, songToQueue);
+                }
+                LogMessage("Finished populating playlist.");
+            }
+        }
+
+        public SongInQueue AddToQueue(string link, IUser user, bool persist = false)
+        {
+
+            try
+            {
+                var songInQueue = PrepareSong(link);
+                songInQueue.QueueBy = user;
+                songInQueue.PersistInQueue = persist;
+                _queue.TryAdd(_queue.Count + 1, songInQueue);
+                LogMessage($"Added { songInQueue.Name } to queue.");
+
+                return songInQueue;
+            }
+            catch (Exception ex)
+            {
+                LogMessage(ex.ToString());
+                return null;
+            }
+        }
+
+        //private async Task SendAudio(IGuild guild, SongInQueue song)
+        //{
+
+        //    if (ConnectedChannels.TryGetValue(guild.Id, out IAudioClient _audio))
+        //    {
+        //        using (Process ffmpeg = GetFfmpeg(song.FilePath))
+        //        using (Stream output = ffmpeg.StandardOutput.BaseStream)
+        //        using (AudioOutStream AudioOutStream = _audio.CreatePCMStream(AudioApplication.Music))
+        //        {
+        //            //Adjust?
+        //            int bufferSize = 4096;
+        //            bool fail = false;
+        //            bool exit = false;
+        //            byte[] buffer = new byte[bufferSize];
+
+        //            while (!Skip && !fail && !_disposeToken.IsCancellationRequested && !exit)
+        //            {
+        //                try
+        //                {
+        //                    int read = await output.ReadAsync(buffer, 0, bufferSize, _disposeToken.Token);
+        //                    if (read == 0)
+        //                    {
+        //                        //No more data available
+        //                        exit = true;
+        //                        break;
+        //                    }
+
+        //                    await AudioOutStream.WriteAsync(buffer, 0, read, _disposeToken.Token);
+
+        //                    if (Pause)
+        //                    {
+        //                        bool pauseAgain;
+
+        //                        do
+        //                        {
+        //                            pauseAgain = await _tcs.Task;
+        //                          _tcs = new TaskCompletionSource<bool>();
+        //                        } while (pauseAgain);
+        //                    }
+        //                }
+        //                catch (TaskCanceledException)
+        //                {
+        //                    exit = true;
+        //                }
+        //                catch
+        //                {
+        //                    fail = true;
+        //                }
+        //            }
+        //        }
+        //    }
+        //}
+
         public async Task StartQueue(ICommandContext context, int? underNumber = null)
         {
-            
-            if (QueueThread == null)
+
+            if (_queueThread == null)
             {
                 LogMessage("QueueThread is null, create new one...");
-                QueueThread = new Thread(async () => await StartQueueThread(context, underNumber));
-                QueueThread.Start();
+                _queueThread = new Thread(async () => await StartQueueThread(context, underNumber));
+                _queueThread.Start();
             }
-            else if (!QueueThread.IsAlive)
+            else if (!_queueThread.IsAlive)
             {
                 LogMessage("QueuThread is no longer alive, create new one and start it again...");
-                QueueThread = new Thread(async () => await StartQueueThread(context, underNumber));
-                QueueThread.Start();
+                _queueThread = new Thread(async () => await StartQueueThread(context, underNumber));
+                _queueThread.Start();
             }
             else
             {
@@ -402,16 +404,15 @@ namespace DiscordBot.Services
 
         public async Task StopQueue()
         {
-            //QueueIsRunning = false;
+            _queueIsRunning = false;
             _skip = true;
         }
 
-        
         public (SongInQueue song, bool IsSuccess) TrySkip(IGuild guild, IVoiceChannel target, int? underNumber = null)
         {
             _skipToSong = underNumber;
 
-            KeyValuePair<int, SongInQueue> skippedKvSong = Queue.FirstOrDefault(it => it.Value.IsPlaying);
+            KeyValuePair<int, SongInQueue> skippedKvSong = _queue.FirstOrDefault(it => it.Value.IsPlaying);
             SongInQueue skippedSong = skippedKvSong.Value;
 
             if (skippedSong == null)
@@ -466,7 +467,7 @@ namespace DiscordBot.Services
 
         public async Task LeaveAudio(IGuild guild)
         {
-            QueueIsRunning = false;
+            _queueIsRunning = false;
 
             if (ConnectedChannels.TryRemove(guild.Id, out IAudioClient client))
             {
