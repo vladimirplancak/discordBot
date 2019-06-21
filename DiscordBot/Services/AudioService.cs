@@ -34,12 +34,13 @@ namespace DiscordBot.Services
         private readonly DiscordSocketClient _client;
         private TaskCompletionSource<bool> _tcs;
         private CancellationTokenSource _disposeToken;
+        private static ManualResetEventSlim _manualResetEventSlim = new ManualResetEventSlim(true);
 
         private readonly ConcurrentDictionary<int, SongInQueue> _queue = new ConcurrentDictionary<int, SongInQueue>();
         private readonly ConcurrentDictionary<ulong, IAudioClient> ConnectedChannels = new ConcurrentDictionary<ulong, IAudioClient>();
 
         #region #Private fields used by queue
-        private static Thread _queueThread;
+        private static Task _queueTask;
         private int? _skipToSong = null;
         private static bool _skip = false;
         private static bool _queueIsRunning = false;
@@ -75,8 +76,6 @@ namespace DiscordBot.Services
             };
         }
         #endregion ctor
-
-
 
         private async Task StartQueueThread(ICommandContext context, int? underNumber = null)
         {
@@ -137,7 +136,10 @@ namespace DiscordBot.Services
                 SongInQueue song = kvSong.Value;
 
                 if (_skipToSong.HasValue && _queue.TryGetValue(_skipToSong.Value, out SongInQueue songToSkipTo))
+                {
                     song = songToSkipTo;
+                    _skipToSong = null;
+                }
 
                 return song != null;
             }
@@ -254,6 +256,7 @@ namespace DiscordBot.Services
                     {
                         try
                         {
+                            _manualResetEventSlim.Wait();
                             int read = await output.ReadAsync(buffer, 0, bufferSize, _disposeToken.Token);
 
                             if (read == 0)
@@ -273,7 +276,6 @@ namespace DiscordBot.Services
                         }
                     }
 
-                    Thread.Sleep(2 * 1000); // let all buffered data go out.
                     _skip = false;
                 }
             }
@@ -328,73 +330,19 @@ namespace DiscordBot.Services
             }
         }
 
-        //private async Task SendAudio(IGuild guild, SongInQueue song)
-        //{
-
-        //    if (ConnectedChannels.TryGetValue(guild.Id, out IAudioClient _audio))
-        //    {
-        //        using (Process ffmpeg = GetFfmpeg(song.FilePath))
-        //        using (Stream output = ffmpeg.StandardOutput.BaseStream)
-        //        using (AudioOutStream AudioOutStream = _audio.CreatePCMStream(AudioApplication.Music))
-        //        {
-        //            //Adjust?
-        //            int bufferSize = 4096;
-        //            bool fail = false;
-        //            bool exit = false;
-        //            byte[] buffer = new byte[bufferSize];
-
-        //            while (!Skip && !fail && !_disposeToken.IsCancellationRequested && !exit)
-        //            {
-        //                try
-        //                {
-        //                    int read = await output.ReadAsync(buffer, 0, bufferSize, _disposeToken.Token);
-        //                    if (read == 0)
-        //                    {
-        //                        //No more data available
-        //                        exit = true;
-        //                        break;
-        //                    }
-
-        //                    await AudioOutStream.WriteAsync(buffer, 0, read, _disposeToken.Token);
-
-        //                    if (Pause)
-        //                    {
-        //                        bool pauseAgain;
-
-        //                        do
-        //                        {
-        //                            pauseAgain = await _tcs.Task;
-        //                          _tcs = new TaskCompletionSource<bool>();
-        //                        } while (pauseAgain);
-        //                    }
-        //                }
-        //                catch (TaskCanceledException)
-        //                {
-        //                    exit = true;
-        //                }
-        //                catch
-        //                {
-        //                    fail = true;
-        //                }
-        //            }
-        //        }
-        //    }
-        //}
-
         public async Task StartQueue(ICommandContext context, int? underNumber = null)
         {
 
-            if (_queueThread == null)
+            if (_queueTask == null)
             {
                 LogMessage("QueueThread is null, create new one...");
-                _queueThread = new Thread(async () => await StartQueueThread(context, underNumber));
-                _queueThread.Start();
+                _queueTask = Task.Factory.StartNew(async () => await StartQueueThread(context, underNumber));
+                
             }
-            else if (!_queueThread.IsAlive)
+            else if (_queueTask.IsCompleted)
             {
                 LogMessage("QueuThread is no longer alive, create new one and start it again...");
-                _queueThread = new Thread(async () => await StartQueueThread(context, underNumber));
-                _queueThread.Start();
+                _queueTask = Task.Factory.StartNew(async () => await StartQueueThread(context, underNumber));
             }
             else
             {
@@ -477,7 +425,16 @@ namespace DiscordBot.Services
 
         public void PauseAudio()
         {
-            Pause = !Pause;
+            if (_manualResetEventSlim.IsSet)
+            {
+                LogMessage("Pausing current song streaming...");
+                _manualResetEventSlim.Reset();
+            }
+            else
+            {
+                LogMessage("Unpause current song streaming...");
+                _manualResetEventSlim.Set();
+            }
         }
 
     }
