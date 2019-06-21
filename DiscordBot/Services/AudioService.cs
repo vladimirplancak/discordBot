@@ -77,7 +77,7 @@ namespace DiscordBot.Services
         }
         #endregion ctor
 
-        private async Task StartQueueThread(ICommandContext context, int? underNumber = null)
+        private void StartQueueThread(ICommandContext context, int? underNumber = null)
         {
             if (ConnectedChannels.IsEmpty)
             {
@@ -101,7 +101,7 @@ namespace DiscordBot.Services
                         LogMessage($"Song found in the queue { song.ToString() }");
 
                         song.IsPlaying = true;
-                        await SendAudio(context.Guild, song);
+                        SendAudio(context.Guild, song).Wait();
                         song.IsPlaying = false;
 
                         LogMessage($"Finished playing song: { song.ToString() }");
@@ -332,21 +332,20 @@ namespace DiscordBot.Services
 
         public async Task StartQueue(ICommandContext context, int? underNumber = null)
         {
-
             if (_queueTask == null)
             {
-                LogMessage("QueueThread is null, create new one...");
-                _queueTask = Task.Factory.StartNew(async () => await StartQueueThread(context, underNumber));
+                LogMessage("Queue task is null, create new one...");
+                _queueTask = Task.Factory.StartNew(() => StartQueueThread(context, underNumber));
                 
             }
             else if (_queueTask.IsCompleted)
             {
-                LogMessage("QueuThread is no longer alive, create new one and start it again...");
-                _queueTask = Task.Factory.StartNew(async () => await StartQueueThread(context, underNumber));
+                LogMessage($"Queue task is no longer alive, create new one and start it again... {_queueTask.Status }");
+                _queueTask = Task.Factory.StartNew(() => StartQueueThread(context, underNumber));
             }
             else
             {
-                LogMessage("Queue thread is already running!");
+                LogMessage("Queue task is already running!");
             }
         }
 
