@@ -37,7 +37,7 @@ namespace DiscordBot.Services
         private static ManualResetEventSlim _manualResetEventSlim = new ManualResetEventSlim(true);
 
         private readonly ConcurrentDictionary<int, SongInQueue> _queue = new ConcurrentDictionary<int, SongInQueue>();
-        private readonly ConcurrentDictionary<ulong, IAudioClient> ConnectedChannels = new ConcurrentDictionary<ulong, IAudioClient>();
+        private  ConcurrentDictionary<ulong, IAudioClient> ConnectedChannels = new ConcurrentDictionary<ulong, IAudioClient>();
 
         #region #Private fields used by queue
         private static Task _queueTask;
@@ -74,7 +74,19 @@ namespace DiscordBot.Services
 
                 return Task.CompletedTask;
             };
+
+            _client.Disconnected += _client_Disconnected;
         }
+
+        private Task _client_Disconnected(Exception arg)
+        {
+            LogMessage("Discord client disconnected, reset connected channels");
+            ConnectedChannels = new ConcurrentDictionary<ulong, IAudioClient>();
+
+            return Task.CompletedTask;
+
+        }
+
         #endregion ctor
 
         private void StartQueueThread(ICommandContext context, int? underNumber = null)
@@ -132,12 +144,19 @@ namespace DiscordBot.Services
 
             bool TryGetSongToPlay(out KeyValuePair<int, SongInQueue> kvSong)
             {
+                string loggingString = $"Current queue is: { Environment.NewLine }";
+                _queue.ToList().ForEach(it => {
+                    loggingString += $"[{it.Key}]. { it.Value.Name }{ Environment.NewLine }";
+                });
+                LogMessage(loggingString);
+
                 kvSong = _queue.FirstOrDefault();
                 SongInQueue song = kvSong.Value;
 
                 if (_skipToSong.HasValue && _queue.TryGetValue(_skipToSong.Value, out SongInQueue songToSkipTo))
                 {
                     song = songToSkipTo;
+                    kvSong = new KeyValuePair<int, SongInQueue>(_skipToSong.Value, songToSkipTo);
                     _skipToSong = null;
                 }
 
@@ -278,6 +297,8 @@ namespace DiscordBot.Services
 
                     _skip = false;
                 }
+
+                Thread.CurrentThread.Join(TimeSpan.FromSeconds(5));
             }
         }
 
@@ -357,6 +378,7 @@ namespace DiscordBot.Services
 
         public (SongInQueue song, bool IsSuccess) TrySkip(IGuild guild, IVoiceChannel target, int? underNumber = null)
         {
+            LogMessage($"Skip requested... (under number: { underNumber }.");
             _skipToSong = underNumber;
 
             KeyValuePair<int, SongInQueue> skippedKvSong = _queue.FirstOrDefault(it => it.Value.IsPlaying);
