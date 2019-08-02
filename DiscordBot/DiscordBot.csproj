@@ -190,6 +190,8 @@
     <Compile Include="Services\AudioService.cs" />
     <Compile Include="Services\EventService.cs" />
     <Compile Include="Services\HelpService.cs" />
+    <Compile Include="YoutubeDownlaoder\IYoutubeDownloaderClient.cs" />
+    <Compile Include="YoutubeDownlaoder\YoutubeVideoLiberaryClient.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config">

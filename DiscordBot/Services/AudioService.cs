@@ -17,6 +17,7 @@ using VideoLibrary;
 using DiscordBot.Extensions;
 using log4net;
 using System.Reflection;
+using DiscordBot.YoutubeDownlaoder;
 
 namespace DiscordBot.Services
 {
@@ -48,6 +49,7 @@ namespace DiscordBot.Services
         #endregion
 
         private readonly DiscordSocketClient _client;
+        private readonly IYoutubeDownloaderClient _youtubeDownloaderClient;
         private TaskCompletionSource<bool> _tcs;
         private CancellationTokenSource _disposeToken;
         private static ManualResetEventSlim _manualResetEventSlim = new ManualResetEventSlim(true);
@@ -77,9 +79,10 @@ namespace DiscordBot.Services
             _log.Info("Static constructor started...");
         }
 
-        public AudioService(DiscordSocketClient client)
+        public AudioService(DiscordSocketClient client, IYoutubeDownloaderClient youtubeDownloaderClient)
         {
             _client = client;
+            _youtubeDownloaderClient = youtubeDownloaderClient;
             _tcs = new TaskCompletionSource<bool>();
             _disposeToken = new CancellationTokenSource();
 
@@ -203,63 +206,9 @@ namespace DiscordBot.Services
             });
         }
 
-        private string GetPropperName(Video vid)
-        {
-            return vid.FullName.Replace(" - YouTube" + vid.FileExtension, "");
-        }
-
         private SongInQueue PrepareSong(string link)
         {
-            try
-            {
-                _log.Info("Started processing file " + link);
-                string guid = Guid.NewGuid().ToString();
-                SongInQueue result = new SongInQueue();
-
-                YouTube youtube = YouTube.Default;
-                string fullFilePath = _musicStorage + guid;
-                Video vid = youtube.GetVideo(link);
-                _log.Info("Finished downloading file " + link);
-                result.Name = GetPropperName(vid);
-
-                File.WriteAllBytes(fullFilePath, vid.GetBytes());
-                _log.Info("Finished saving file to the disc.");
-
-                var inputFile = new MediaFile(fullFilePath);
-                var fullFilePathWithExtension = $"{fullFilePath}.mp3";
-                var outputFile = new MediaFile(fullFilePathWithExtension);
-
-                result.FilePath = fullFilePathWithExtension;
-
-                var convertSW = new Stopwatch();
-                using (Engine convertEngine = new Engine())
-                {
-                    convertEngine.GetMetadata(inputFile);
-                    convertSW.Start();
-                    convertEngine.Convert(inputFile, outputFile);
-                    convertSW.Stop();
-                }
-
-                _log.Info($"Finished convering. Time: { convertSW.Elapsed.ToString() }");
-
-                if (File.Exists(fullFilePath))
-                {
-                    File.Delete(fullFilePath);
-                }
-                else
-                {
-                    throw new NotImplementedException();
-                }
-
-                _log.Info("Finished processing file " + link);
-                return result;
-            }
-            catch (Exception ex)
-            {
-                _log.Info($"Failed to prepare file:  { ex }");
-            }
-
-            return null;
+            return _youtubeDownloaderClient.DownloadSong(link);
         }
 
         private static Process GetFfmpegProcess(string path)

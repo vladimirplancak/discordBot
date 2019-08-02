@@ -12,6 +12,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.ServiceProcess;
 using log4net;
+using DiscordBot.YoutubeDownlaoder;
 
 [assembly: log4net.Config.XmlConfigurator(Watch = true)]
 namespace DiscordBot
@@ -64,7 +65,8 @@ namespace DiscordBot
 
             string token = "MzQ0ODgyNjI3NzU0NDU5MTM3.DcO5ww.mRJrDDpDCIPZlWsTgUoaYXnAeRA"; // Remember to keep this private!
 
-            AudioService audioService = new AudioService(client);
+            IYoutubeDownloaderClient youtubeDownloaderClient = new YoutubeVideoLiberaryClient();
+            AudioService audioService = new AudioService(client, youtubeDownloaderClient);
             eventService = new EventService(client);
 
             services = new ServiceCollection()
@@ -77,9 +79,6 @@ namespace DiscordBot
 
             await client.LoginAsync(TokenType.Bot, token);
             await client.StartAsync();
-
-
-
 
             // Block this task until the program is closed.
             await Task.Delay(-1);
