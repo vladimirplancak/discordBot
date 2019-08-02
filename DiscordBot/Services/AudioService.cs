@@ -38,7 +38,7 @@ namespace DiscordBot.Services
 
     public class AudioService
     {
-        private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
+        private static readonly ILog _log = LogManager.GetLogger(typeof(AudioService));
 
         #region private fields used for settings
         //TODO: Get from config file.
@@ -74,7 +74,7 @@ namespace DiscordBot.Services
         static AudioService()
         {
             DeleteOldFiles();
-
+            _log.Info("Static constructor started...");
         }
 
         public AudioService(DiscordSocketClient client)
@@ -91,12 +91,12 @@ namespace DiscordBot.Services
                 return Task.CompletedTask;
             };
 
-            _client.Disconnected += _client_Disconnected;
+            _client.Disconnected += Client_Disconnected;
         }
 
-        private Task _client_Disconnected(Exception arg)
+        private Task Client_Disconnected(Exception arg)
         {
-            LogMessage("Discord client disconnected, reset connected channels");
+            _log.Info("Discord client disconnected, reset connected channels");
 
             foreach (var connectedChannel in ConnectedChannels)
             {
@@ -115,13 +115,13 @@ namespace DiscordBot.Services
         {
             if (ConnectedChannels.IsEmpty)
             {
-                LogMessage("Add client to the chanel, then start queue!");
+                _log.Info("Add client to the chanel, then start queue!");
                 return;
             }
 
             _queueIsRunning = true;
 
-            LogMessage($"Starting queue! with queue items: { _queue.Count }");
+            _log.Info($"Starting queue! with queue items: { _queue.Count }");
 
             while (!_queue.IsEmpty && _queueIsRunning)
             {
@@ -132,17 +132,17 @@ namespace DiscordBot.Services
                     {
                         SongInQueue song = kvSong.Value;
 
-                        LogMessage($"Song found in the queue { song.ToString() }");
+                        _log.Info($"Song found in the queue { song.ToString() }");
 
                         song.IsPlaying = true;
                         SendAudio(context.Guild, song).Wait();
                         song.IsPlaying = false;
 
-                        LogMessage($"Finished playing song: { song.ToString() }");
+                        _log.Info($"Finished playing song: { song.ToString() }");
 
                         if (_queue.TryRemove(kvSong.Key, out SongInQueue removedSong))
                         {
-                            LogMessage($"Song successfully removed from queue: { removedSong.ToString() }");
+                            _log.Info($"Song successfully removed from queue: { removedSong.ToString() }");
                             if (!song.IsPlayList && File.Exists(song.FilePath))
                             {
                                 File.Delete(song.FilePath);
@@ -150,7 +150,7 @@ namespace DiscordBot.Services
                         }
                         else
                         {
-                            LogMessage($"Failed to remove song from the queue: { removedSong.ToString() }");
+                            _log.Info($"Failed to remove song from the queue: { removedSong.ToString() }");
                         }
                     }
                 }
@@ -162,15 +162,11 @@ namespace DiscordBot.Services
             }
 
             _queueIsRunning = false;
-            LogMessage("Queue is empty, stopping queue...");
+            _log.Info("Queue is empty, stopping queue...");
 
             bool TryGetSongToPlay(out KeyValuePair<int, SongInQueue> kvSong)
             {
-                string loggingString = $"Current queue is: { Environment.NewLine }";
-                _queue.ToList().ForEach(it => {
-                    loggingString += $"[{it.Key}]. { it.Value.Name }{ Environment.NewLine }";
-                });
-                LogMessage(loggingString);
+                _log.Info(_queue.ToString());
 
                 kvSong = _queue.FirstOrDefault();
                 SongInQueue song = kvSong.Value;
@@ -216,18 +212,18 @@ namespace DiscordBot.Services
         {
             try
             {
-                LogMessage("Started processing file " + link);
+                _log.Info("Started processing file " + link);
                 string guid = Guid.NewGuid().ToString();
                 SongInQueue result = new SongInQueue();
 
                 YouTube youtube = YouTube.Default;
                 string fullFilePath = _musicStorage + guid;
                 Video vid = youtube.GetVideo(link);
-                LogMessage("Finished downloading file " + link);
+                _log.Info("Finished downloading file " + link);
                 result.Name = GetPropperName(vid);
 
                 File.WriteAllBytes(fullFilePath, vid.GetBytes());
-                LogMessage("Finished saving file to the disc.");
+                _log.Info("Finished saving file to the disc.");
 
                 var inputFile = new MediaFile(fullFilePath);
                 var fullFilePathWithExtension = $"{fullFilePath}.mp3";
@@ -244,7 +240,7 @@ namespace DiscordBot.Services
                     convertSW.Stop();
                 }
 
-                LogMessage($"Finished convering. Time: { convertSW.Elapsed.ToString() }");
+                _log.Info($"Finished convering. Time: { convertSW.Elapsed.ToString() }");
 
                 if (File.Exists(fullFilePath))
                 {
@@ -255,12 +251,12 @@ namespace DiscordBot.Services
                     throw new NotImplementedException();
                 }
 
-                LogMessage("Finished processing file " + link);
+                _log.Info("Finished processing file " + link);
                 return result;
             }
             catch (Exception ex)
             {
-                LogMessage($"Failed to prepare file:  { ex }");
+                _log.Info($"Failed to prepare file:  { ex }");
             }
 
             return null;
@@ -276,11 +272,6 @@ namespace DiscordBot.Services
                 RedirectStandardOutput = true
             };
             return Process.Start(ffmpeg);
-        }
-
-        private void LogMessage(string message)
-        {
-            Console.WriteLine($"[{DateTime.Now.ToString("hh:mm:ss")}] - [{Thread.CurrentThread.ManagedThreadId}] {message}");
         }
 
         private async Task SendAudio(IGuild guild, SongInQueue song)
@@ -313,7 +304,7 @@ namespace DiscordBot.Services
                         }
                         catch (TaskCanceledException tce)
                         {
-                            LogMessage($"Task Canceled exception { tce.ToString() }");
+                            _log.Info($"Task Canceled exception { tce.ToString() }");
                             exit = true;
                         }
                         catch
@@ -337,7 +328,7 @@ namespace DiscordBot.Services
             }
             else
             {
-                LogMessage("Started populating playlist.");
+                _log.Info("Started populating playlist.");
                 var files = Directory.GetFiles(_musicPlayListStorage);
                 foreach (var file in files)
                 {
@@ -351,10 +342,10 @@ namespace DiscordBot.Services
                         QueueBy = _client.CurrentUser
                     };
 
-                    LogMessage($"Adding song { songToQueue.Name }");
+                    _log.Info($"Adding song { songToQueue.Name }");
                     _queue.TryAdd(_queue.Count() + 1, songToQueue);
                 }
-                LogMessage("Finished populating playlist.");
+                _log.Info("Finished populating playlist.");
             }
         }
 
@@ -367,13 +358,13 @@ namespace DiscordBot.Services
                 songInQueue.QueueBy = user;
                 songInQueue.PersistInQueue = persist;
                 _queue.TryAdd(_queue.Count + 1, songInQueue);
-                LogMessage($"Added { songInQueue.Name } to queue.");
+                _log.Info($"Added { songInQueue.Name } to queue.");
 
                 return songInQueue;
             }
             catch (Exception ex)
             {
-                LogMessage(ex.ToString());
+                _log.Info(ex.ToString());
                 return null;
             }
         }
@@ -382,18 +373,18 @@ namespace DiscordBot.Services
         {
             if (_queueTask == null)
             {
-                LogMessage("Queue task is null, create new one...");
+                _log.Info("Queue task is null, create new one...");
                 _queueTask = Task.Factory.StartNew(() => StartQueueThread(context, underNumber));
                 
             }
             else if (_queueTask.IsCompleted)
             {
-                LogMessage($"Queue task is no longer alive, create new one and start it again... {_queueTask.Status }");
+                _log.Info($"Queue task is no longer alive, create new one and start it again... {_queueTask.Status }");
                 _queueTask = Task.Factory.StartNew(() => StartQueueThread(context, underNumber));
             }
             else
             {
-                LogMessage("Queue task is already running!");
+                _log.Info("Queue task is already running!");
             }
         }
 
@@ -405,7 +396,7 @@ namespace DiscordBot.Services
 
         public (SongInQueue song, bool IsSuccess) TrySkip(IGuild guild, IVoiceChannel target, int? underNumber = null)
         {
-            LogMessage($"Skip requested... (under number: { underNumber }.");
+            _log.Info($"Skip requested... (under number: { underNumber }.");
             _skipToSong = underNumber;
 
             KeyValuePair<int, SongInQueue> skippedKvSong = _queue.FirstOrDefault(it => it.Value.IsPlaying);
@@ -443,12 +434,12 @@ namespace DiscordBot.Services
 
                 if (ConnectedChannels.TryAdd(guild.Id, audioClient))
                 {
-                    LogMessage($"Connected to voice on {guild.Name}.");
+                    _log.Info($"Connected to voice on {guild.Name}.");
                     retVal = true;
                 }
                 else
                 {
-                    LogMessage($"Faild to connected to voice on {guild.Name}.");
+                    _log.Info($"Faild to connected to voice on {guild.Name}.");
                     retVal = false;
                 }
 
@@ -475,12 +466,12 @@ namespace DiscordBot.Services
         {
             if (_manualResetEventSlim.IsSet)
             {
-                LogMessage("Pausing current song streaming...");
+                _log.Info("Pausing current song streaming...");
                 _manualResetEventSlim.Reset();
             }
             else
             {
-                LogMessage("Unpause current song streaming...");
+                _log.Info("Unpause current song streaming...");
                 _manualResetEventSlim.Set();
             }
         }

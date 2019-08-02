@@ -3,7 +3,6 @@ using Discord.Audio;
 using Discord.Commands;
 using Discord.WebSocket;
 using DiscordBot.Services;
-using log4net;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
@@ -12,15 +11,15 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.ServiceProcess;
+using log4net;
 
 [assembly: log4net.Config.XmlConfigurator(Watch = true)]
-
 namespace DiscordBot
 {
 
     public class Program
     {
-        private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
+        private static readonly ILog _log = LogManager.GetLogger(typeof(Program));
         private CommandService commands;
         private DiscordSocketClient client;
         private EventService eventService;
@@ -54,7 +53,7 @@ namespace DiscordBot
 
             client.Ready += () =>
             {
-                Console.WriteLine("Bot connected");
+                _log.Info("Bot connected");
 
                 return Task.CompletedTask;
             };
@@ -88,7 +87,7 @@ namespace DiscordBot
 
         private Task Log(LogMessage msg)
         {
-            Console.WriteLine(msg.ToString());
+            _log.Info(msg.ToString());
             return Task.CompletedTask;
         }
 
