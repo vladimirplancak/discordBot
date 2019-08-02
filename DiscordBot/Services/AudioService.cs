@@ -181,6 +181,11 @@ namespace DiscordBot.Services
                     kvSong = new KeyValuePair<int, SongInQueue>(_skipToSong.Value, songToSkipTo);
                     _skipToSong = null;
                 }
+                else if(underNumber.HasValue && _queue.TryGetValue(underNumber.Value, out SongInQueue songUnderIndex))
+                {
+                    song = songUnderIndex;
+                    kvSong = new KeyValuePair<int, SongInQueue>(underNumber.Value, songUnderIndex);
+                }
 
                 return song != null;
             }
