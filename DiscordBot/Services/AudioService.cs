@@ -81,6 +81,12 @@ namespace DiscordBot.Services
         private Task _client_Disconnected(Exception arg)
         {
             LogMessage("Discord client disconnected, reset connected channels");
+
+            foreach (var connectedChannel in ConnectedChannels)
+            {
+                connectedChannel.Value.StopAsync().Wait();
+            }
+
             ConnectedChannels = new ConcurrentDictionary<ulong, IAudioClient>();
 
             return Task.CompletedTask;
