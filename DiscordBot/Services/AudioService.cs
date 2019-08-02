@@ -20,6 +20,22 @@ using System.Reflection;
 
 namespace DiscordBot.Services
 {
+    public class CustomConcurrentDictionary<T1, T2> : ConcurrentDictionary<T1, T2>
+    {
+        public override string ToString()
+        {
+            string loggingString = $"Current queue is: { Environment.NewLine }";
+
+            foreach (var key in Keys)
+            {
+                loggingString += $"[{key}]. { this[key].ToString() }{ Environment.NewLine }";
+                
+            }
+
+            return loggingString;
+        }
+    }
+
     public class AudioService
     {
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
@@ -36,7 +52,7 @@ namespace DiscordBot.Services
         private CancellationTokenSource _disposeToken;
         private static ManualResetEventSlim _manualResetEventSlim = new ManualResetEventSlim(true);
 
-        private readonly ConcurrentDictionary<int, SongInQueue> _queue = new ConcurrentDictionary<int, SongInQueue>();
+        private readonly ConcurrentDictionary<int, SongInQueue> _queue = new CustomConcurrentDictionary<int, SongInQueue>();
         private  ConcurrentDictionary<ulong, IAudioClient> ConnectedChannels = new ConcurrentDictionary<ulong, IAudioClient>();
 
         #region #Private fields used by queue
