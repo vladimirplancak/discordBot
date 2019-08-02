@@ -3,3 +3,4 @@ DiscordBot/obj/
 DiscordBot/packages/
 DiscordBot/bin/
 /DiscordBot.Crawler/obj/Debug
+DiscordBot.Test/obj/Debug/netcoreapp2.2/DiscordBot.Test.csprojAssemblyReference.cache
