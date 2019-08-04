@@ -65,7 +65,7 @@ namespace DiscordBot
 
             string token = "MzQ0ODgyNjI3NzU0NDU5MTM3.DcO5ww.mRJrDDpDCIPZlWsTgUoaYXnAeRA"; // Remember to keep this private!
 
-            IYoutubeDownloaderClient youtubeDownloaderClient = new YoutubeVideoLiberaryClient();
+            IYoutubeDownloaderClient youtubeDownloaderClient = new YoutubeExplodeClient();
             AudioService audioService = new AudioService(client, youtubeDownloaderClient);
             eventService = new EventService(client);
 
