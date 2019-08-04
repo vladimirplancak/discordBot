@@ -94,12 +94,21 @@ namespace DiscordBot.Services
                 return Task.CompletedTask;
             };
 
+            client.LatencyUpdated += Client_LatencyUpdated;
+
             _client.Disconnected += Client_Disconnected;
+        }
+
+        private Task Client_LatencyUpdated(int arg1, int arg2)
+        {
+            _log.Info($"Latency update. { arg1 } -> { arg2 }");
+
+            return Task.CompletedTask;
         }
 
         private Task Client_Disconnected(Exception arg)
         {
-            _log.Info("Discord client disconnected, reset connected channels");
+            _log.Warn("Discord client disconnected, reset connected channels");
 
             foreach (var connectedChannel in ConnectedChannels)
             {
@@ -109,7 +118,6 @@ namespace DiscordBot.Services
             ConnectedChannels = new ConcurrentDictionary<ulong, IAudioClient>();
 
             return Task.CompletedTask;
-
         }
 
         #endregion ctor
@@ -135,17 +143,17 @@ namespace DiscordBot.Services
                     {
                         SongInQueue song = kvSong.Value;
 
-                        _log.Info($"Song found in the queue { song.ToString() }");
+                        _log.Info($"Playing { song.ToString() } found in the queue...");
 
                         song.IsPlaying = true;
                         SendAudio(context.Guild, song).Wait();
                         song.IsPlaying = false;
 
-                        _log.Info($"Finished playing song: { song.ToString() }");
+                        _log.Info($"Finished playing song: { song.ToString() }.");
 
                         if (_queue.TryRemove(kvSong.Key, out SongInQueue removedSong))
                         {
-                            _log.Info($"Song successfully removed from queue: { removedSong.ToString() }");
+                            _log.Info($"Song successfully removed from queue: { removedSong.ToString() }.");
                             if (!song.IsPlayList && File.Exists(song.FilePath))
                             {
                                 File.Delete(song.FilePath);
@@ -153,7 +161,7 @@ namespace DiscordBot.Services
                         }
                         else
                         {
-                            _log.Info($"Failed to remove song from the queue: { removedSong.ToString() }");
+                            _log.Info($"Failed to remove song from the queue: { removedSong.ToString() }.");
                         }
                     }
                 }
