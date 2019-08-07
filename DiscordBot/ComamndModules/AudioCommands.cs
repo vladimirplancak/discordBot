@@ -161,13 +161,11 @@ namespace DiscordBot.ComamndModules
         {
             var retVal = "\n";
 
-            var i = 1;
             foreach(var song in _audioService.QueueItems)
             {
                 string isPlaying = song.Value.IsPlaying ? " - playing! " : "";
                
-                retVal += i + ". " + song.Value.Name + " " + isPlaying + "\n";
-                i++;
+                retVal += song.Key + ". " + song.Value.Name + " " + isPlaying + "\n";
             }
 
             Replay(retVal);

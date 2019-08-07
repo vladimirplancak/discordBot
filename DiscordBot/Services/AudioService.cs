@@ -35,6 +35,7 @@ namespace DiscordBot.Services
 
             return loggingString;
         }
+
     }
 
     public class AudioService
@@ -54,14 +55,16 @@ namespace DiscordBot.Services
         private CancellationTokenSource _disposeToken;
         private static ManualResetEventSlim _manualResetEventSlim = new ManualResetEventSlim(true);
 
-        private readonly ConcurrentDictionary<int, SongInQueue> _queue = new CustomConcurrentDictionary<int, SongInQueue>();
-        private  ConcurrentDictionary<ulong, IAudioClient> ConnectedChannels = new ConcurrentDictionary<ulong, IAudioClient>();
+        private ConcurrentDictionary<int, SongInQueue> _queue = new CustomConcurrentDictionary<int, SongInQueue>();
+        private ConcurrentDictionary<ulong, IAudioClient> ConnectedChannels = new ConcurrentDictionary<ulong, IAudioClient>();
 
         #region #Private fields used by queue
         private static Task _queueTask;
         private int? _skipToSong = null;
         private static bool _skip = false;
         private static bool _queueIsRunning = false;
+        private int keyOfPreviousSong = 0;
+
         #endregion
 
         public IEnumerable<KeyValuePair<int, SongInQueue>> QueueItems
@@ -142,6 +145,7 @@ namespace DiscordBot.Services
                     if (TryGetSongToPlay(out KeyValuePair<int, SongInQueue> kvSong))
                     {
                         SongInQueue song = kvSong.Value;
+                        keyOfPreviousSong = kvSong.Key;
 
                         _log.Info($"Playing { song.ToString() } found in the queue...");
 
@@ -150,19 +154,7 @@ namespace DiscordBot.Services
                         song.IsPlaying = false;
 
                         _log.Info($"Finished playing song: { song.ToString() }.");
-
-                        if (_queue.TryRemove(kvSong.Key, out SongInQueue removedSong))
-                        {
-                            _log.Info($"Song successfully removed from queue: { removedSong.ToString() }.");
-                            if (!song.IsPlayList && File.Exists(song.FilePath))
-                            {
-                                File.Delete(song.FilePath);
-                            }
-                        }
-                        else
-                        {
-                            _log.Info($"Failed to remove song from the queue: { removedSong.ToString() }.");
-                        }
+                        RemoveSongFromQueue(kvSong.Key);
                     }
                 }
                 catch (Exception ex)
@@ -196,6 +188,38 @@ namespace DiscordBot.Services
 
                 return song != null;
             }
+        }
+
+        private void RemoveSongFromQueue(int key)
+        {
+            _log.Info($"Trying to remove song from queue key: { key } curretQueue: { _queue.ToString() }");
+            if (_queue.TryRemove(key, out SongInQueue removedSong))
+            {
+                _log.Info($"Successfully removed song from the queue key: { key } curretQueue: { _queue.ToString() }");
+
+                if (!removedSong.IsPlayList && File.Exists(removedSong.FilePath))
+                {
+                    File.Delete(removedSong.FilePath);
+                }
+            }
+            else
+            {
+                _log.Info($"Failed to removed song from the queue key: { key } curretQueue: { _queue.ToString() }");
+            }
+
+            //Update old list 
+            var oldList = new List<KeyValuePair<int, SongInQueue>>();
+
+            int i = 1;
+            foreach (var item in _queue)
+            {
+                oldList.Add(new KeyValuePair<int, SongInQueue>(i, item.Value));
+                i++;
+            }
+
+            _log.Info($"Queue after update: { _queue.ToString() }");
+
+            _queue = new ConcurrentDictionary<int, SongInQueue>(oldList);
         }
 
         private static void DeleteOldFiles()
@@ -353,18 +377,29 @@ namespace DiscordBot.Services
 
         public (SongInQueue song, bool IsSuccess) TrySkip(IGuild guild, IVoiceChannel target, int? underNumber = null)
         {
-            _log.Info($"Skip requested... (under number: { underNumber }.");
+            _log.Info($"Skip requested... (under number: { underNumber }).");
             _skipToSong = underNumber;
+
+            //To match adjusted queue after refreshing indexes
+            if (_skipToSong > 1 && _skipToSong > keyOfPreviousSong)
+            {
+                _skipToSong--;
+            }
+
+            _log.Info($"Skip requested after modification... (under number: { underNumber }).");
+
 
             KeyValuePair<int, SongInQueue> skippedKvSong = _queue.FirstOrDefault(it => it.Value.IsPlaying);
             SongInQueue skippedSong = skippedKvSong.Value;
+            
+
 
             if (skippedSong == null)
                 throw new ArgumentNullException(nameof(skippedSong));
 
 
             if (underNumber.HasValue && skippedKvSong.Key == underNumber.Value)
-                return (skippedSong, false);
+                return (skippedSong, IsSuccess: false);
 
             _skip = true;
 
