@@ -38,6 +38,15 @@ namespace DiscordBot.Services
 
     }
 
+
+    public class RecoverState
+    {
+        //public RecoverState(int keyo)
+        //{
+
+        //}
+    }
+
     public class AudioService
     {
         private static readonly ILog _log = LogManager.GetLogger(typeof(AudioService));
@@ -46,6 +55,8 @@ namespace DiscordBot.Services
         //TODO: Get from config file.
         private readonly static string _musicStorage = @"D:/youtubemusic/";
         private readonly static string _musicPlayListStorage = @"D:/youtubeMusicPlayList/";
+        private readonly static string _musicPlayListSavings = @"D:\youtubePlayList";
+
         public bool PopulateSystemPlayList = false;
         #endregion
 
@@ -92,7 +103,7 @@ namespace DiscordBot.Services
             _client.Ready += () =>
             {
                 if (PopulateSystemPlayList)
-                    GetSongsFromPlayList();
+                    GetSongsFromPlayList(_musicPlayListStorage);
 
                 return Task.CompletedTask;
             };
@@ -113,12 +124,12 @@ namespace DiscordBot.Services
         {
             _log.Warn("Discord client disconnected, reset connected channels");
 
-            foreach (var connectedChannel in ConnectedChannels)
-            {
-                connectedChannel.Value.StopAsync().Wait();
-            }
+            //foreach (var connectedChannel in ConnectedChannels)
+            //{
+            //    connectedChannel.Value.StopAsync().Wait();
+            //}
 
-            ConnectedChannels = new ConcurrentDictionary<ulong, IAudioClient>();
+            //ConnectedChannels = new ConcurrentDictionary<ulong, IAudioClient>();
 
             return Task.CompletedTask;
         }
@@ -238,9 +249,28 @@ namespace DiscordBot.Services
             });
         }
 
-        private SongInQueue PrepareSong(string link)
+        private SongInQueue PrepareSong(string link, bool saveToPlayList)
         {
-            return _youtubeDownloaderClient.DownloadSong(link);
+            SongInQueue retVal = _youtubeDownloaderClient.DownloadSong(link);
+
+            if (saveToPlayList)
+            {
+                string newSourceLocation = MoveToPlayList(retVal);
+                retVal.FilePath = newSourceLocation;
+                retVal.IsPlayList = true;
+            }
+            
+            return retVal;
+        }
+
+        private string MoveToPlayList(SongInQueue retVal)
+        {
+            string songName = retVal.Name;
+            string newLocation = Path.Combine(_musicPlayListSavings, songName);
+
+            File.Move(retVal.FilePath, newLocation);
+
+            return newLocation;
         }
 
         private static Process GetFfmpegProcess(string path)
@@ -286,6 +316,8 @@ namespace DiscordBot.Services
                         catch (TaskCanceledException tce)
                         {
                             _log.Info($"Task Canceled exception { tce.ToString() }");
+                            _disposeToken = new CancellationTokenSource();
+                            
                             exit = true;
                         }
                         catch
@@ -301,16 +333,26 @@ namespace DiscordBot.Services
             }
         }
 
-        public void GetSongsFromPlayList()
+        public void GetSongsFromPlayList(bool extended)
         {
-            if (!Directory.Exists(_musicPlayListStorage))
+            if (extended)
             {
-                Directory.CreateDirectory(_musicPlayListStorage);
+                GetSongsFromPlayList(_musicPlayListStorage);
+            }
+
+            GetSongsFromPlayList(_musicPlayListSavings);
+        }
+
+        public void GetSongsFromPlayList(string link)
+        {
+            if (!Directory.Exists(link))
+            {
+                Directory.CreateDirectory(link);
             }
             else
             {
                 _log.Info("Started populating playlist.");
-                var files = Directory.GetFiles(_musicPlayListStorage);
+                var files = Directory.GetFiles(link);
                 foreach (var file in files)
                 {
                     var fileName = Path.GetFileName(file);
@@ -318,7 +360,6 @@ namespace DiscordBot.Services
                     {
                         FilePath = file,
                         Name = fileName,
-                        PersistInQueue = false,
                         IsPlayList = true,
                         QueueBy = _client.CurrentUser
                     };
@@ -330,14 +371,13 @@ namespace DiscordBot.Services
             }
         }
 
-        public SongInQueue AddToQueue(string link, IUser user, bool persist = false)
+        public SongInQueue AddToQueue(string link, IUser user, bool saveToPlaylist = false)
         {
 
             try
             {
-                var songInQueue = PrepareSong(link);
+                var songInQueue = PrepareSong(link, saveToPlaylist);
                 songInQueue.QueueBy = user;
-                songInQueue.PersistInQueue = persist;
                 _queue.TryAdd(_queue.Count + 1, songInQueue);
                 _log.Info($"Added { songInQueue.Name } to queue.");
 

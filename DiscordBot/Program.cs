@@ -63,7 +63,7 @@ namespace DiscordBot
 
             commands = new CommandService();
 
-            string token = "MzQ0ODgyNjI3NzU0NDU5MTM3.DcO5ww.mRJrDDpDCIPZlWsTgUoaYXnAeRA"; // Remember to keep this private!
+            string token = "MzQ0ODgyNjI3NzU0NDU5MTM3.XUSD9w.RAyxs-e6V-onkVHolyJLqV5PxwI"; // Remember to keep this private!
 
             IYoutubeDownloaderClient youtubeDownloaderClient = new YoutubeExplodeClient();
             AudioService audioService = new AudioService(client, youtubeDownloaderClient);
@@ -75,7 +75,11 @@ namespace DiscordBot
                 .AddSingleton(eventService)
                 .BuildServiceProvider();
 
-            await InstallCommands();
+            // Hook the MessageReceived Event into our Command Handler
+            client.MessageReceived += HandleCommand;
+
+            // Discover all of the commands in this assembly and load them.
+            await commands.AddModulesAsync(Assembly.GetEntryAssembly(), services);
 
             await client.LoginAsync(TokenType.Bot, token);
             await client.StartAsync();
@@ -88,15 +92,6 @@ namespace DiscordBot
         {
             _log.Info(msg.ToString());
             return Task.CompletedTask;
-        }
-
-        private async Task InstallCommands()
-        {
-            // Hook the MessageReceived Event into our Command Handler
-            client.MessageReceived += HandleCommand;
-
-            // Discover all of the commands in this assembly and load them.
-            await commands.AddModulesAsync(Assembly.GetEntryAssembly());
         }
 
         private async Task HandleCommand(SocketMessage messageParam)

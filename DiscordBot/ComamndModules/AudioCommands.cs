@@ -141,10 +141,10 @@ namespace DiscordBot.ComamndModules
         [Command("add", RunMode = RunMode.Async), Summary("Queues new song.")]
         public async Task Queue(
             [Summary("Link of the youtube song!")] string link, 
-            [Summary("should this song be looped in queue")] bool persist = false
+            [Summary("should this song be looped in queue")] bool saveToplayList = false
             )
         {
-            var addedItem = _audioService.AddToQueue(link, Context.User, persist);
+            var addedItem = _audioService.AddToQueue(link, Context.User, saveToplayList);
 
             if (addedItem != null)
             {
@@ -191,6 +191,6 @@ namespace DiscordBot.ComamndModules
         public async Task Pause() => _audioService.PauseAudio();
 
         [Command("playlist", RunMode = RunMode.Async), Summary("Adds whole playlist to the queue!")]
-        public async Task CreatePlayList() => _audioService.GetSongsFromPlayList();
+        public async Task CreatePlayList(bool extended) => _audioService.GetSongsFromPlayList(extended);
     }
 }

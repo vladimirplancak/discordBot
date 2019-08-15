@@ -13,7 +13,6 @@ namespace DiscordBot.Models
         public string FilePath { get; set; }
         public bool IsPlaying { get; set; }
         public IUser QueueBy;
-        public bool PersistInQueue { get; set; }
         public bool IsPlayList { get; set; } = false;
 
         public override string ToString()
