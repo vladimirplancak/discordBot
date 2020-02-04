@@ -29,7 +29,7 @@ namespace DiscordBot.YoutubeDownlaoder
 
                 YoutubeExplode.Models.Video video = client.GetVideoAsync(parsedYoutubeId).Result;
                 result.Name = video.Title;
-                AudioStreamInfo streamInfo = streamInfoSet.Audio.First();
+                AudioStreamInfo streamInfo = streamInfoSet.Audio.FirstOrDefault();
 
                 string ext = streamInfo.Container.GetFileExtension();
                 fullFilePath += $".{ ext }";
