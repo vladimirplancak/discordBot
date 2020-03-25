@@ -53,7 +53,7 @@ namespace DiscordBot.Services
 
         #region private fields used for settings
         //TODO: Get from config file.
-        private readonly static string _musicStorage = @"D:/youtubemusic/";
+        private readonly static string _musicStorage = @"C:/youtubemusic/";
         private readonly static string _musicPlayListStorage = @"D:/youtubeMusicPlayList/";
         private readonly static string _musicPlayListSavings = @"D:\youtubePlayList";
 

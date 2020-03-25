@@ -10,7 +10,7 @@ namespace DiscordBot.YoutubeDownlaoder
 {
     public class YoutubeExplodeClient : IYoutubeDownloaderClient
     {
-        private readonly static string _musicStorage = @"D:/youtubemusic/";
+        private readonly static string _musicStorage = @"C:/youtubemusic/";
         private static readonly ILog _log = LogManager.GetLogger(typeof(YoutubeExplodeClient));
 
         public SongInQueue DownloadSong(string link)
